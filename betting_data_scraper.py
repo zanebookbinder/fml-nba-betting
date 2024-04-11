@@ -19,11 +19,11 @@ data = r.json()
 
 
 # Read the json data into a pandas df
-df = pd.DataFrame(data, columns=['season', 'home_team_abbrev', 'visit_team_abbrev',
+df = pd.DataFrame(data, columns=['game_date', 'home_team_abbrev', 'visit_team_abbrev',
                                  'line', 'home_team_score', 'visit_team_score'])
 df['Final Score Spread'] = df['visit_team_score'] - df['home_team_score']
 df = df.sort_values(by='home_team_abbrev')
-df = df.rename(columns={'home_team_abbrev': 'Home Team', 'season': 'Season',
+df = df.rename(columns={'home_team_abbrev': 'Home Team', 'game_date': 'Date',
                         'visit_team_abbrev': 'Away Team', 'line': 'Betting Score Spread'})
 df = df.drop(columns=['home_team_score', 'visit_team_score'])
 df['Betting Line Error'] = df['Betting Score Spread'] - df['Final Score Spread']
