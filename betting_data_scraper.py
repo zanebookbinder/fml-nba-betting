@@ -165,6 +165,31 @@ class OddsDataScraper:
 
         return result
 
+    def get_rotowire_data(self, path='https://www.rotowire.com/betting/nba/tables/games-archive.php'):
+        data = requests.get(path).json()
+        df = pd.DataFrame(data, columns=['game_date', 'home_team_abbrev', 'visit_team_abbrev',
+                                        'line', 'game_over_under'])
+
+        df = df.sort_values(by='game_date').reset_index(drop=True)
+        df = df.rename(columns={'home_team_abbrev': 'Team', 'game_date': 'Date',
+                                'visit_team_abbrev': 'OppTeam', 'line': 'Spread', 'game_over_under': 'O/U'})
+        
+        df['Location'] = 'home'
+        df['Date'] = df['Date'].str.split(' ').str[0]
+        df['Date'] = pd.to_datetime(df["Date"], format="%Y-%m-%d")
+
+        new_df = df.copy()
+        new_df['Location'] = 'away'
+        new_df['Team'], new_df['OppTeam'] = new_df['OppTeam'], new_df['Team']
+        new_df['Spread'] = -new_df['Spread']
+
+        df = pd.concat([df, new_df], axis=0).sort_values(by='Date').reset_index(drop=True)
+        df.to_csv('./data/rotowire_odds_data.csv', index=False)
+
+    def get_all_data(self):
+        self.get_all_kaggle_data()
+        self.get_rotowire_data()
+
     # break up kaggle data into team and season dataframes
     def divide_df_by_team_and_year(self, path="./data/compiled_stat_data.csv"):
         df = pd.read_csv(path)
@@ -208,7 +233,7 @@ class OddsDataScraper:
 def main():
     scraper = OddsDataScraper()
 
-    # scraper.get_all_kaggle_data()
+    # scraper.get_all_data()
     scraper.add_stats()
 
 
