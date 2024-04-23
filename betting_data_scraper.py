@@ -162,10 +162,8 @@ class OddsDataScraper:
         result["Result"] = np.where(result["PTS"] > result["PTS_opp"], 1, 0)
 
         betting_data = result.iloc[:, :54].drop(columns=['Season','Location','Result'])
-        # betting_data.to_csv("./data/compiled_odds_data.csv", index=False)
-
         result = pd.concat([result.iloc[:, :6], result.iloc[:, 54:]], axis=1)
-        # result.to_csv("./data/compiled_stat_data.csv", index=False)
+
         return betting_data
 
     def get_rotowire_data(self, path='https://www.rotowire.com/betting/nba/tables/games-archive.php'):
@@ -210,8 +208,9 @@ class OddsDataScraper:
         merged_df.to_csv('./data/compiled_odds_data.csv', index=False)
 
     # break up kaggle data into team and season dataframes
-    def divide_df_by_team_and_year(self, path="./data/compiled_stat_data.csv"):
-        df = pd.read_csv(path)
+    def divide_df_by_team_and_year(self, df=pd.DataFrame(), path="./data/compiled_stat_data.csv"):
+        if not df.shape[0]:
+            df = pd.read_csv(path)
         teams = df["Team"].unique()
         years = df["Season"].unique()
 
@@ -229,17 +228,19 @@ class OddsDataScraper:
     # set up year-long and last 8 game stats (opponent stats should be compared to before-game average)
     def create_season_stats(self, season_df):
         # season_df[CUMULATIVE_GAME_STATS + ['PTS_opp']].to_csv('test_before.csv')
-        for stat in CUMULATIVE_GAME_STATS:
-            season_df["LAST_8_" + stat] = (
+        fgm_column = season_df.columns.to_list().index('fgm')
+        cumulative_stats = season_df.columns[fgm_column:]
+        for stat in cumulative_stats:
+            season_df["last_8_" + stat] = (
                 season_df[stat].shift().rolling(window=8, min_periods=1).mean()
             )
-            season_df["LAST_8_" + stat + "_opp"] = season_df[stat + "_opp"].rolling(window=8, min_periods=1).mean()
-        season_df["LAST_8_WINS"] = (
+            # season_df["last_8" + stat + "_opp"] = season_df[stat + "_opp"].rolling(window=8, min_periods=1).mean()
+        season_df["last_8_wins"] = (
             season_df["Result"].shift().rolling(window=8, min_periods=1).sum()
         )
         return season_df
 
-    def create_stats_df(self):
+    def create_stats_df(self, odds_data_path='./data/all_odds_data.csv'):
         df = pd.read_csv('./data/kaggle_game_data/game.csv').rename(
             columns={
                 'game_date': 'Date',
@@ -249,7 +250,7 @@ class OddsDataScraper:
             }
         )
         df.insert(0, 'Location', 'home')
-        odds_data = pd.read_csv('./data/compiled_odds_data.csv')
+        odds_data = pd.read_csv(odds_data_path)
 
         min_odds_data_date = odds_data['Date'].min()
         df = df.loc[(df['season_type'] == 'Regular Season') & (df['Date'] >= min_odds_data_date) & (df['Team'].isin(self.abbreviation_dict.keys())) & (df['OppTeam'].isin(self.abbreviation_dict.keys()))]
@@ -258,7 +259,6 @@ class OddsDataScraper:
         df['OppTeam'] = df['OppTeam'].apply(lambda x: self.abbreviation_dict[x])
         df['Result'] = df['Result'].apply(lambda x: 1 if x == 'W' else 0)
 
-        # df = df.drop(df.columns[~df.columns.str.contains('home|away')], axis=1)
         df = df.drop(df.columns[df.columns.str.contains('_id_|matchup|wl|video|season_type')], axis=1)
         df = df.drop(['season_id', 'team_name_home', 'game_id', 'team_name_away', 'min', 'plus_minus_home', 'plus_minus_away'], axis=1)
         df.reset_index(drop=True, inplace=True)
@@ -294,16 +294,27 @@ class OddsDataScraper:
         opposite_df = opposite_df[df.columns]
 
         df = pd.concat([df, opposite_df], axis=0).sort_values(by='Date').reset_index(drop=True)
-        df.to_csv('./data/all_stats.csv', index=False)
+        return df
 
-        # ISSUE WITH LOS ANGELES DUPLICATED HERE
+    def get_all_stats(self):
+        df = self.create_stats_df()
+        season_dict = self.divide_df_by_team_and_year(df, path=None)
+        
+        final_df = pd.DataFrame()
+        for year in season_dict.keys():
+            print(year)
+            for team in season_dict[year].keys():
+                final_df = pd.concat([final_df, self.create_season_stats(season_dict[year][team])], ignore_index=True)
 
+        final_df.sort_values(by=['Date', 'Team', 'OppTeam'], inplace=True)
+        final_df.reset_index(drop=True, inplace=True)
+        final_df.to_csv('./data/all_stat_data.csv', index=False)
 
 def main():
     scraper = OddsDataScraper()
 
     # scraper.get_all_data()
-    scraper.create_stats_df()
+    scraper.get_all_stats()
 
 
 if __name__ == "__main__":
