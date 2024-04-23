@@ -202,10 +202,15 @@ class OddsDataScraper:
         return merged_df
 
     def get_all_data(self):
+        # odds
         kaggle = self.get_all_kaggle_odds_data()
         rotowire = self.get_rotowire_data()
         merged_df = self.combine_all_odds_data(kaggle, rotowire)
-        merged_df.to_csv('./data/compiled_odds_data.csv', index=False)
+        merged_df.to_csv('./data/all_odds_data.csv', index=False)
+
+        # stats
+        stats_df = self.get_all_stats()
+        stats_df.to_csv('./data/all_stat_data.csv', index=False)
 
     # break up kaggle data into team and season dataframes
     def divide_df_by_team_and_year(self, df=pd.DataFrame(), path="./data/compiled_stat_data.csv"):
@@ -308,13 +313,11 @@ class OddsDataScraper:
 
         final_df.sort_values(by=['Date', 'Team', 'OppTeam'], inplace=True)
         final_df.reset_index(drop=True, inplace=True)
-        final_df.to_csv('./data/all_stat_data.csv', index=False)
+        return final_df
 
 def main():
     scraper = OddsDataScraper()
-
-    # scraper.get_all_data()
-    scraper.get_all_stats()
+    scraper.get_all_data()
 
 
 if __name__ == "__main__":
