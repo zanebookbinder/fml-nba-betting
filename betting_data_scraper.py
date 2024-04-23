@@ -38,10 +38,11 @@ GAME_STATS = [
 
 class OddsDataScraper:
     def __init__(self):
-        self.abbreviation_dict = self.create_abbreviation_dict()
+        # {abbreviation: city name}   ,  {city name: abbreviation}
+        self.abbreviation_dict, self.city_name_dict = self.create_abbreviation_dict()
 
     def create_abbreviation_dict(
-        self, path="./data/kaggle_data/2012-13/raw_scores.txt"
+        self, path="./data/kaggle_odds_data/2012-13/raw_scores.txt"
     ):
         abbrev = {}
         df = pd.read_csv(path)
@@ -51,9 +52,12 @@ class OddsDataScraper:
                 abbrev[row["TEAM_ABBREVIATION"]] = row["TEAM_CITY_NAME"]
 
         abbrev["NOP"] = "New Orleans"
-        return abbrev
+        abbrev['LAC'] = 'LA'
+        abbrev['LAL'] = 'Los Angeles'
+        reverse_abbrev = {value: key for key, value in abbrev.items()}
+        return abbrev, reverse_abbrev
 
-    def read_kaggle_odds_data(self, path="./data/kaggle_data"):
+    def read_kaggle_odds_data(self, path="./data/kaggle_odds_data"):
         odds_data = pd.DataFrame()
 
         for root, dirs, files in os.walk(path):
@@ -66,7 +70,7 @@ class OddsDataScraper:
         odds_data = odds_data.sort_values(by="Date").reset_index(drop=True)
         return odds_data
 
-    def read_kaggle_game_data(self, path="./data/kaggle_data"):
+    def read_kaggle_game_data(self, path="./data/kaggle_odds_data"):
         game_data = pd.DataFrame()
 
         for root, dirs, files in os.walk(path):
@@ -122,7 +126,7 @@ class OddsDataScraper:
         game_data = game_data.sort_values(by="Date").reset_index(drop=True)
         return game_data
 
-    def get_all_kaggle_data(self):
+    def get_all_kaggle_odds_data(self):
         odds = self.read_kaggle_odds_data()
         odds["Team"] = odds["Team"].replace(
             {"L.A. Clippers": "LA", "L.A. Lakers": "Los Angeles"}
@@ -158,12 +162,11 @@ class OddsDataScraper:
         result["Result"] = np.where(result["PTS"] > result["PTS_opp"], 1, 0)
 
         betting_data = result.iloc[:, :54].drop(columns=['Season','Location','Result'])
-        betting_data.to_csv("./data/compiled_odds_data.csv", index=False)
+        # betting_data.to_csv("./data/compiled_odds_data.csv", index=False)
 
         result = pd.concat([result.iloc[:, :6], result.iloc[:, 54:]], axis=1)
-        result.to_csv("./data/compiled_stat_data.csv", index=False)
-
-        return result
+        # result.to_csv("./data/compiled_stat_data.csv", index=False)
+        return betting_data
 
     def get_rotowire_data(self, path='https://www.rotowire.com/betting/nba/tables/games-archive.php'):
         data = requests.get(path).json()
@@ -184,11 +187,27 @@ class OddsDataScraper:
         new_df['Spread'] = -new_df['Spread']
 
         df = pd.concat([df, new_df], axis=0).sort_values(by='Date').reset_index(drop=True)
-        df.to_csv('./data/rotowire_odds_data.csv', index=False)
+        # df.to_csv('./data/rotowire_odds_data.csv', index=False)
+        return df
+
+    def combine_all_odds_data(self, kaggle, rotowire):
+        rotowire['Team'] = rotowire['Team'].apply(lambda x: self.abbreviation_dict[x])
+        rotowire['OppTeam'] = rotowire['OppTeam'].apply(lambda x: self.abbreviation_dict[x])
+
+        max_kaggle_date = kaggle['Date'].max()
+        rotowire = rotowire.loc[rotowire['Date'] > max_kaggle_date]
+
+        rotowire = rotowire.rename(columns={'Spread': 'Best_Line_Spread', 'O/U': 'Best_Line_OU'})
+        rotowire.drop(['Location'], axis=1, inplace=True)
+
+        merged_df = pd.concat([kaggle, rotowire]).fillna(0)
+        return merged_df
 
     def get_all_data(self):
-        self.get_all_kaggle_data()
-        self.get_rotowire_data()
+        kaggle = self.get_all_kaggle_odds_data()
+        rotowire = self.get_rotowire_data()
+        merged_df = self.combine_all_odds_data(kaggle, rotowire)
+        merged_df.to_csv('./data/compiled_odds_data.csv', index=False)
 
     # break up kaggle data into team and season dataframes
     def divide_df_by_team_and_year(self, path="./data/compiled_stat_data.csv"):
@@ -220,21 +239,71 @@ class OddsDataScraper:
         )
         return season_df
 
-    def add_stats(self):
-        season_dict = self.divide_df_by_team_and_year()
-        df_list = []
-        for teams in season_dict.values():
-            for team_df in teams.values():
-                df_list.append(self.create_season_stats(team_df))
+    def create_stats_df(self):
+        df = pd.read_csv('./data/kaggle_game_data/game.csv').rename(
+            columns={
+                'game_date': 'Date',
+                'team_abbreviation_home': 'Team',
+                'team_abbreviation_away': 'OppTeam',
+                'wl_home': 'Result',
+            }
+        )
+        df.insert(0, 'Location', 'home')
+        odds_data = pd.read_csv('./data/compiled_odds_data.csv')
 
-        df = pd.concat(df_list, axis=0).reset_index(drop=True)
-        df.to_csv('./data/all_games_with_recent_stats.csv')
+        min_odds_data_date = odds_data['Date'].min()
+        df = df.loc[(df['season_type'] == 'Regular Season') & (df['Date'] >= min_odds_data_date) & (df['Team'].isin(self.abbreviation_dict.keys())) & (df['OppTeam'].isin(self.abbreviation_dict.keys()))]
+        
+        df['Team'] = df['Team'].apply(lambda x: self.abbreviation_dict[x])
+        df['OppTeam'] = df['OppTeam'].apply(lambda x: self.abbreviation_dict[x])
+        df['Result'] = df['Result'].apply(lambda x: 1 if x == 'W' else 0)
+
+        # df = df.drop(df.columns[~df.columns.str.contains('home|away')], axis=1)
+        df = df.drop(df.columns[df.columns.str.contains('_id_|matchup|wl|video|season_type')], axis=1)
+        df = df.drop(['season_id', 'team_name_home', 'game_id', 'team_name_away', 'min', 'plus_minus_home', 'plus_minus_away'], axis=1)
+        df.reset_index(drop=True, inplace=True)
+
+        df["Date"] = pd.to_datetime(df["Date"].str.split(' ').str[0], format="%Y-%m-%d")
+        df.insert(0, "Season", "")
+        df["Season"] = df["Date"].apply(
+            lambda x: (
+                str(x.year) + "-" + str(x.year + 1)
+                if x.month >= 6
+                else str(x.year - 1) + "-" + str(x.year)
+            )
+        )
+
+        df.columns = df.columns.str.replace("_home", "")
+        df.columns = df.columns.str.replace("_away", "_opp")
+
+        df.insert(3, 'OppTeam', df.pop('OppTeam'))
+        df.insert(1, 'Date', df.pop('Date'))
+
+        opposite_df = df.copy()
+        opposite_df['Location'] = 'away'
+        opposite_df['Team'], opposite_df['OppTeam'] = opposite_df['OppTeam'], opposite_df['Team']
+        opposite_df['Result'] = 1 - opposite_df['Result']
+        opposite_df_columns = []
+        for col in opposite_df.columns[6:]:
+            if '_opp' in col:
+                opposite_df_columns.append(col.replace('_opp', ''))
+            else:
+                opposite_df_columns.append(col + '_opp')
+
+        opposite_df.columns = df.columns[:6].to_list() + opposite_df_columns
+        opposite_df = opposite_df[df.columns]
+
+        df = pd.concat([df, opposite_df], axis=0).sort_values(by='Date').reset_index(drop=True)
+        df.to_csv('./data/all_stats.csv', index=False)
+
+        # ISSUE WITH LOS ANGELES DUPLICATED HERE
+
 
 def main():
     scraper = OddsDataScraper()
 
     # scraper.get_all_data()
-    scraper.add_stats()
+    scraper.create_stats_df()
 
 
 if __name__ == "__main__":
