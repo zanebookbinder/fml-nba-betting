@@ -9,9 +9,7 @@ Created on Wed Apr 10 20:42:33 2024
 import requests
 import pandas as pd
 import numpy as np
-from bs4 import BeautifulSoup
 import os
-from datetime import datetime
 from constants import city_coordinates
 from geopy.distance import geodesic
 

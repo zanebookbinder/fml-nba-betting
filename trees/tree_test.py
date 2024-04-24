@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
-from CARTLearner import CARTLearner as CARTLearner
+from trees.CARTLearner import CARTLearner as CARTLearner
 
 data_folder = './data'
 df = pd.read_csv(data_folder + f"/all_stat_data.csv")
