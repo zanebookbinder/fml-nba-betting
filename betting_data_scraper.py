@@ -12,6 +12,8 @@ import numpy as np
 from bs4 import BeautifulSoup
 import os
 from datetime import datetime
+from constants import city_coordinates
+from geopy.distance import geodesic
 
 CUMULATIVE_GAME_STATS = [
     "PTS",
@@ -206,10 +208,12 @@ class OddsDataScraper:
         kaggle = self.get_all_kaggle_odds_data()
         rotowire = self.get_rotowire_data()
         merged_df = self.combine_all_odds_data(kaggle, rotowire)
+        print('outputting odds to ./data/all_odds_data.csv')
         merged_df.to_csv('./data/all_odds_data.csv', index=False)
 
         # stats
         stats_df = self.get_all_stats()
+        print('outputting stats to ./data/all_stat_data.csv')
         stats_df.to_csv('./data/all_stat_data.csv', index=False)
 
     # break up kaggle data into team and season dataframes
@@ -243,9 +247,20 @@ class OddsDataScraper:
         season_df["last_8_wins"] = (
             season_df["Result"].shift().rolling(window=8, min_periods=1).sum()
         )
-        return season_df
+        season_df.insert(4, 'days_of_rest', (season_df['Date'] - season_df['Date'].shift()).dt.days)
+        season_df.fillna(10, inplace=True)
+
+        season_df['game_location'] = season_df.apply(lambda x: x['Team'] if x['Location'] == 'home' else x['OppTeam'], axis=1)
+        season_df['prev_game_location'] = season_df['game_location'].shift()
+        season_df.insert(5, 'travel_miles', 0)
+
+        season_df['travel_miles'] = season_df.apply(lambda x: round(geodesic(city_coordinates[x['game_location']], city_coordinates[x['prev_game_location']]).miles, 2) if not pd.isna(x['prev_game_location']) else 0, axis=1)
+
+        return season_df.drop(['game_location', 'prev_game_location'], axis=1)
 
     def create_stats_df(self, odds_data_path='./data/all_odds_data.csv'):
+
+        # read data from csv
         df = pd.read_csv('./data/kaggle_game_data/game.csv').rename(
             columns={
                 'game_date': 'Date',
@@ -257,17 +272,23 @@ class OddsDataScraper:
         df.insert(0, 'Location', 'home')
         odds_data = pd.read_csv(odds_data_path)
 
+        # limit stat data to games that we have odds on
         min_odds_data_date = odds_data['Date'].min()
         df = df.loc[(df['season_type'] == 'Regular Season') & (df['Date'] >= min_odds_data_date) & (df['Team'].isin(self.abbreviation_dict.keys())) & (df['OppTeam'].isin(self.abbreviation_dict.keys()))]
         
+        # change teams to their cities
         df['Team'] = df['Team'].apply(lambda x: self.abbreviation_dict[x])
         df['OppTeam'] = df['OppTeam'].apply(lambda x: self.abbreviation_dict[x])
+
+        # add a result column
         df['Result'] = df['Result'].apply(lambda x: 1 if x == 'W' else 0)
 
+        # drop lots of columns that we don't need
         df = df.drop(df.columns[df.columns.str.contains('_id_|matchup|wl|video|season_type')], axis=1)
         df = df.drop(['season_id', 'team_name_home', 'game_id', 'team_name_away', 'min', 'plus_minus_home', 'plus_minus_away'], axis=1)
         df.reset_index(drop=True, inplace=True)
 
+        # add Date and Season columns
         df["Date"] = pd.to_datetime(df["Date"].str.split(' ').str[0], format="%Y-%m-%d")
         df.insert(0, "Season", "")
         df["Season"] = df["Date"].apply(
@@ -278,12 +299,15 @@ class OddsDataScraper:
             )
         )
 
+        # rename columns to avoid home/away
         df.columns = df.columns.str.replace("_home", "")
         df.columns = df.columns.str.replace("_away", "_opp")
 
+        # shift order of columns
         df.insert(3, 'OppTeam', df.pop('OppTeam'))
         df.insert(1, 'Date', df.pop('Date'))
 
+        # make rows for every team's opponent
         opposite_df = df.copy()
         opposite_df['Location'] = 'away'
         opposite_df['Team'], opposite_df['OppTeam'] = opposite_df['OppTeam'], opposite_df['Team']
@@ -298,6 +322,7 @@ class OddsDataScraper:
         opposite_df.columns = df.columns[:6].to_list() + opposite_df_columns
         opposite_df = opposite_df[df.columns]
 
+        # combine the two dfs
         df = pd.concat([df, opposite_df], axis=0).sort_values(by='Date').reset_index(drop=True)
         return df
 
@@ -311,9 +336,22 @@ class OddsDataScraper:
             for team in season_dict[year].keys():
                 final_df = pd.concat([final_df, self.create_season_stats(season_dict[year][team])], ignore_index=True)
 
+        final_df = self.add_opponent_travel_miles_and_days_of_rest(final_df)
         final_df.sort_values(by=['Date', 'Team', 'OppTeam'], inplace=True)
         final_df.reset_index(drop=True, inplace=True)
+        final_df = final_df.round(3)
         return final_df
+    
+    def add_opponent_travel_miles_and_days_of_rest(self, df):
+        df = pd.merge(
+            df,
+            df[["Date", "OppTeam", 'days_of_rest', 'travel_miles']],
+            left_on=["Date", "Team"],
+            right_on=["Date", "OppTeam"],
+            suffixes=("", "_opp"),
+        ).drop(["OppTeam_opp"], axis=1)
+
+        return df
 
 def main():
     scraper = OddsDataScraper()
