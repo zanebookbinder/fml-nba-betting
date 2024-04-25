@@ -3,14 +3,15 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import root_mean_squared_error
 from CARTLearner import CARTLearner
-from BootstrapLearner import BootstrapLearner
+from trees.BootstrapLearner import BootstrapLearner
 import matplotlib.pyplot as plt
 
 data_folder = './data'
 df = pd.read_csv(data_folder + f"/all_stat_data.csv")
 df = df.iloc[:1000]
 df = df.fillna(method='bfill')
-features_df = df[['last_8_pts', 'last_8_pts_opp', 'last_8_ast', 'last_8_ast_opp', 'last_8_reb_opp', 'last_8_reb_opp', 'last_8_tov', 'last_8_tov_opp']]
+# features_df = df[['last_8_pts', 'last_8_pts_opp', 'last_8_ast', 'last_8_ast_opp', 'last_8_reb_opp', 'last_8_reb_opp', 'last_8_tov', 'last_8_tov_opp', 'fg']]
+features_df = df.drop(columns=['Season', 'Date', 'Location', 'Team', 'Result'])
 target_df = df['pts'] - df['pts_opp']
 
 x_train, x_test, y_train, y_test = train_test_split(features_df.values, target_df.values, test_size=0.4)
@@ -76,7 +77,7 @@ in_sample = []
 out_of_sample = []
 for i in range(1, iterations):
     # Plot 1
-    lrn = BootstrapLearner(constituent = CARTLearner, kwargs = {"leaf_size": i}, bags = 50)
+    lrn = BootstrapLearner(constituent = CARTLearner, kwargs = {"leaf_size": i}, bags = 10)
     lrn.train(x_train, y_train)
 
     # Test in-sample.
