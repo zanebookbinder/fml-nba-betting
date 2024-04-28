@@ -246,7 +246,7 @@ class OddsDataScraper:
             season_df["Result"].shift().rolling(window=8, min_periods=1).sum()
         )
         season_df.insert(4, 'days_of_rest', (season_df['Date'] - season_df['Date'].shift()).dt.days)
-        season_df.fillna(10, inplace=True)
+        season_df.fillna({'days_of_rest': 10}, inplace=True)
 
         season_df['game_location'] = season_df.apply(lambda x: x['Team'] if x['home_game'] == 1 else x['OppTeam'], axis=1)
         season_df['prev_game_location'] = season_df['game_location'].shift()
@@ -338,12 +338,13 @@ class OddsDataScraper:
         final_df.sort_values(by=['Date', 'Team', 'OppTeam'], inplace=True)
         final_df.reset_index(drop=True, inplace=True)
         final_df = final_df.round(3)
+        final_df.dropna(inplace=True)
         return final_df
     
     def add_opponent_travel_miles_and_days_of_rest(self, df):
         df = pd.merge(
             df,
-            df[["Date", "OppTeam", 'days_of_rest', 'travel_miles']],
+            df[["Date", "OppTeam", 'days_of_rest', 'travel_miles', 'last_8_wins']],
             left_on=["Date", "Team"],
             right_on=["Date", "OppTeam"],
             suffixes=("", "_opp"),

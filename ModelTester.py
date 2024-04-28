@@ -87,6 +87,7 @@ class ModelTester():
 		df.loc[(df['bet']) & (~df['win_bet']), 'gain/loss'] = -1
 		df.loc[(df['bet']) & (df['win_bet']), 'gain/loss'] = df['Odds']
 
+		print(f'Total games: {len(df)}')
 		print(f'Number of bets: {df["bet"].sum()}')
 		print(f'Number of wins: {df.loc[df["bet"] == True, "win_bet"].sum()}')
 		print(f'Win rate: {round(df.loc[df["bet"] == True, "win_bet"].sum() / df["bet"].sum(), 3)}')
@@ -95,9 +96,6 @@ class ModelTester():
 	def train_and_evaluate_model(self):
 		test = self.final_df.sample(frac=0.35)
 		train = self.final_df.drop(test.index)
-
-		# test.reset_index(drop=True, inplace=True)
-		# train.reset_index(drop=True, inplace=True)
 
 		x_train = train.drop(['predict_col', self.line_column_title, self.odds_column_title], axis=1)
 		y_train = train['predict_col']
@@ -120,4 +118,4 @@ class ModelTester():
 		return train_df, test_df
 
 	
-ModelTester(predict_type='Spread', odds_type='best')
+ModelTester(predict_type='Spread', odds_type='best', betting_threshold=15)
