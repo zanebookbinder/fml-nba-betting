@@ -175,12 +175,12 @@ class OddsDataScraper:
         df = df.rename(columns={'home_team_abbrev': 'Team', 'game_date': 'Date',
                                 'visit_team_abbrev': 'OppTeam', 'line': 'Spread', 'game_over_under': 'O/U'})
         
-        df['Location'] = 'home'
+        df['home_game'] = 1
         df['Date'] = df['Date'].str.split(' ').str[0]
         df['Date'] = pd.to_datetime(df["Date"], format="%Y-%m-%d")
 
         new_df = df.copy()
-        new_df['Location'] = 'away'
+        new_df['home_game'] = 0
         new_df['Team'], new_df['OppTeam'] = new_df['OppTeam'], new_df['Team']
         new_df['Spread'] = -new_df['Spread']
 
@@ -196,7 +196,7 @@ class OddsDataScraper:
         rotowire = rotowire.loc[rotowire['Date'] > max_kaggle_date]
 
         rotowire = rotowire.rename(columns={'Spread': 'Best_Line_Spread', 'O/U': 'Best_Line_OU'})
-        rotowire.drop(['Location'], axis=1, inplace=True)
+        rotowire.drop(['home_game'], axis=1, inplace=True)
 
         merged_df = pd.concat([kaggle, rotowire]).fillna(0)
         return merged_df
@@ -248,7 +248,7 @@ class OddsDataScraper:
         season_df.insert(4, 'days_of_rest', (season_df['Date'] - season_df['Date'].shift()).dt.days)
         season_df.fillna(10, inplace=True)
 
-        season_df['game_location'] = season_df.apply(lambda x: x['Team'] if x['Location'] == 'home' else x['OppTeam'], axis=1)
+        season_df['game_location'] = season_df.apply(lambda x: x['Team'] if x['home_game'] == 1 else x['OppTeam'], axis=1)
         season_df['prev_game_location'] = season_df['game_location'].shift()
         season_df.insert(5, 'travel_miles', 0)
 
@@ -267,7 +267,7 @@ class OddsDataScraper:
                 'wl_home': 'Result',
             }
         )
-        df.insert(0, 'Location', 'home')
+        df.insert(0, 'home_game', '1')
         odds_data = pd.read_csv(odds_data_path)
 
         # limit stat data to games that we have odds on
@@ -307,7 +307,7 @@ class OddsDataScraper:
 
         # make rows for every team's opponent
         opposite_df = df.copy()
-        opposite_df['Location'] = 'away'
+        opposite_df['home_game'] = '0'
         opposite_df['Team'], opposite_df['OppTeam'] = opposite_df['OppTeam'], opposite_df['Team']
         opposite_df['Result'] = 1 - opposite_df['Result']
         opposite_df_columns = []
