@@ -4,7 +4,8 @@ import pandas as pd
 pd.options.mode.chained_assignment = None  # default='warn'
 import numpy as np
 from LinearRegressor import LinearRegressor
-from trees.PERTLearner import PERTLearner as PERTLearner
+from trees.PERTLearner import PERTLearner
+from trees.CARTLearner import CARTLearner
 import matplotlib.pyplot as plt
 import time
 
@@ -135,7 +136,7 @@ class ModelTester():
 		gain_or_loss = df["gain/loss"].sum()
 
 		if print_results:
-			print(f'Total games: {len(df)}')
+			print(f'Testing model with {len(df)} total games')
 			print(f'Number of bets: {bets_made}')
 			print(f'Number of wins: {df.loc[df["bet"] == True, "win_bet"].sum()}')
 			print(f'Win rate: {win_rate}')
@@ -154,7 +155,9 @@ class ModelTester():
 
 		x_test = test.drop(some_columns, axis=1)
 
+		print('Training model...')
 		self.model.train(x_train, y_train)
+		print('Done training model')
 
 		is_predictions = self.model.test(x_train)
 		oos_predictions = self.model.test(x_test)
@@ -201,5 +204,36 @@ def compare_odd_types(predict_type='Spread', graph_type='win_rate'):
 
 	plt.legend()
 	plt.show()
-	
-compare_odd_types(predict_type='OU')
+
+def compare_PERT_leaf_sizes(predict_type='Spread', graph_type='win_rate'):
+	# compare leaf sizes
+	results = []
+	leaf_sizes = [5, 10, 20, 30, 40, 50]
+	for leaf_size in leaf_sizes:
+		print('Leaf size:', leaf_size)
+		m = ModelTester(model_class=PERTLearner, predict_type=predict_type, leaf_size=leaf_size)
+		bets_made, win_rate, unit_gains = m.bet_with_predictions(m.test_df_result, print_results=False)
+
+		if graph_type == 'win_rate':
+			results.append(win_rate)
+		else:
+			results.append(unit_gains)
+
+	plt.plot(leaf_sizes, results)
+	plt.xlabel('Leaf Size')
+
+	if graph_type == 'win_rate':
+		plt.ylabel('Win Rate')
+		plt.title('Leaf Size vs. Win Rate for PERT Learner' + predict_type + ' Predictions')
+	else:
+		plt.ylabel('Units Gained/Lost')
+		plt.title('Leaf Size vs. Win Rate for PERT Learner' + predict_type + ' Predictions')
+
+	plt.show()
+
+
+# compare_odd_types(predict_type='OU')
+# compare_PERT_leaf_sizes(predict_type='Spread')
+
+m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
+m.bet_with_predictions(m.test_df_result, print_results=True)

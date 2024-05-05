@@ -1,85 +1,68 @@
-import numpy as np
 
-class Node:
-        def __init__(self, y=None, decision=None, left=None, right=None, feature=None, split_value=None):
-            # Value (only for leaf nodes)
-            self.y = y
-            # Left and right subtrees
-            self.left = left
-            self.right = right
-            # Index of feature that is considered
-            self.feature = feature
-            # Threshold value that is split on
-            self.split_value = split_value
+import numpy as np
+import pandas as pd
+
+class TreeNode:
+    def __init__(self, split_feature=None, split_value=None):
+        self.split_feature = split_feature
+        self.split_value = split_value
+        self.left = None
+        self.right = None
+
+    def p(self):
+        print(self.split_feature, self.split_value, self.left, self.right)
+
+    def is_leaf(self):
+        return not self.left and not self.right
 
 class CARTLearner:
-
     def __init__(self, leaf_size=1):
         self.leaf_size = leaf_size
-        root = None
+        self.tree_root = None
+
+    def build_tree(self, data):
+        if np.all(data['Y'] == data['Y'].iloc[0]):
+            return TreeNode(None, data['Y'].iloc[0])
         
-    def build_tree(self, x, y):
-        node = Node()
-        features = x
-        # if all the y values are the same, return a leaf with that y value
-        if len(np.unique(y)) == 1:
-            node.y = y[0]
-            return node
-        # else if it is not possible to split (all X values same), return a leaf
-        elif np.all(x == x[0]):
-            node.y = np.mean(y)
-            return node
-        # else if another stopping condition is met, return a leaf
-        elif len(y) <= self.leaf_size:
-            node.y = np.mean(y)
-            return node
-        else:
-        #   determine the best X feature to split on
-            correlations = []
-            for i in range(len(features[0])):
-                feature = features[:, i]
-                correlation = np.abs(np.corrcoef(feature, y)[0, 1])
-                correlations.append(correlation)
-            best_feature = np.argmax(correlations)
+        if not data.loc[:, data.columns != 'Y'].std().max():
+            return TreeNode(None, data['Y'].mean())
+                
+        if len(data) <= self.leaf_size:
+            return TreeNode(None, data['Y'].mean())
+        
+        corr_matrix = data.corr()['Y'][:-1].abs()
+        best_corr_feature = corr_matrix.idxmax()
+        median = data[best_corr_feature].median()
 
-        #   split on the median value of the selected X feature
-        #   be sure to record the selected feature and value for this decision node
-            median = np.mean(x[:, best_feature])
-            node.split_value = median
-            node.feature = best_feature
-        #   recursively build the left child (w/ data where selected feature value <= split value)
-        #   recursively build the right child (w/ data where selected feature value > split value)
-            left_list = x[np.where(x[:, best_feature] <= median)]
-            right_list = x[np.where(x[:, best_feature] > median)]
-            # case where all the x values are on one side
-            if len(right_list) == 0 or len(left_list) == 0:
-                node.y = np.mean(y)
-                return node
-            left_labels = y[np.where(x[:, best_feature] <= median)]
-            right_labels = y[np.where(x[:, best_feature] > median)]
+        left = data.loc[data[best_corr_feature] <= median]
+        right = data.loc[data[best_corr_feature] > median]
 
-            left = self.build_tree(left_list, left_labels)
-            right = self.build_tree(right_list, right_labels)
+        if not len(left) or not len(right):
+            return TreeNode(None, data['Y'].mean())
 
-            node.left = left
-            node.right = right
-            
-            return node
+        my_node = TreeNode(best_corr_feature, median)
+        my_node.left = self.build_tree(left)
+        my_node.right = self.build_tree(right)
+        return my_node
 
     def train(self, x, y):
-        self.root = self.build_tree(x, y)
-        # induce a decision tree based on this training data
+        data = pd.DataFrame(x)
+        data['Y'] = y
+        self.tree_root = self.build_tree(data)
 
     def test(self, x):
-        node = self.root
-        preds = np.zeros(len(x))
-        for i in range(len(x)):
-            row = x[i, :]
-            while node.y is None:
-                if row[node.feature] <= node.split_value:
-                    node = node.left
-                elif row[node.feature] > node.split_value:
-                    node = node.right
-            preds[i] = node.y
-            node = self.root
-        return preds
+        output = np.empty(x.shape[0])
+
+        for i in range(x.shape[0]):
+            cur_node = self.tree_root
+
+            while not cur_node.is_leaf():
+                row_split_val = x.iloc[i][cur_node.split_feature]
+                if row_split_val <= cur_node.split_value:
+                    cur_node = cur_node.left
+                else:
+                    cur_node = cur_node.right
+
+            output[i] = cur_node.split_value
+
+        return output
