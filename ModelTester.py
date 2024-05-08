@@ -7,7 +7,7 @@ from LinearRegressor import LinearRegressor
 from trees.PERTLearner import PERTLearner
 from trees.CARTLearner import CARTLearner
 import matplotlib.pyplot as plt
-import time
+from useful_functions import get_odds_data
 
 class ModelTester():
 	def __init__(self, model_class=LinearRegressor, start_date='2013-10-29', end_date='2023-04-09', predict_type='Spread', odds_type='best', betting_threshold=5, **kwargs):		
@@ -30,18 +30,20 @@ class ModelTester():
 	def graph_betting_threshold(self, test_df_result, plot=True):
 		# graph betting threshold vs. win percentage and unit gain/loss
 
-		thresholds = np.arange(1, 20, .1)
+		thresholds = np.arange(1, 15, .1)
 		win_rates = []
 		unit_gains = []
+		bets_made_list = []
 
 		for threshold in thresholds:
 			bets_made, win_rate, unit_gain = self.bet_with_predictions(test_df_result, betting_threshold=threshold)
 
 			win_rates.append(win_rate)
 			unit_gains.append(unit_gain)
+			bets_made_list.append(bets_made)
 
 		if not plot:
-			return thresholds, win_rates, unit_gains
+			return thresholds, win_rates, unit_gains, bets_made_list
 
 		plt.plot(thresholds, win_rates, label='Win Rate')
 		plt.xlabel('Betting Threshold')
@@ -54,38 +56,6 @@ class ModelTester():
 		plt.ylabel('Units Gained/Lost')
 		plt.title('Betting Threshold vs. Unit Gain/Loss for ' + self.predict_type + ' Predictions')
 		plt.show()
-
-	def get_odds_data(self, start_date, end_date, odds_path='./data/all_odds_data.csv'):
-		# read csv and filter by date
-		self.odds_data = pd.read_csv(odds_path)
-		self.odds_data = self.odds_data[(self.odds_data['Date'] >= start_date) & (self.odds_data['Date'] <= end_date)]
-		
-		# get best and worst lines for each game
-		self.odds_data['Best_Line_Option_1'] = self.odds_data['Best_Line_' + self.predict_type]
-		self.odds_data['Best_Line_Option_2'] = self.odds_data['Worst_Line_' + self.predict_type]
-
-		# fill in missing lines
-		self.odds_data.loc[self.odds_data['Best_Line_Option_2'] == 0, 'Best_Line_Option_2'] = self.odds_data.loc[self.odds_data['Best_Line_Option_2'] == 0, 'Best_Line_Option_1']
-
-		# if predicting spread, make negative lines positive (margin of victory)
-		if self.predict_type == 'Spread':
-			self.odds_data['Best_Line_Option_1'] = -1 * self.odds_data['Best_Line_Option_1']
-			self.odds_data['Best_Line_Option_2'] = -1 * self.odds_data['Best_Line_Option_2']
-
-		# get best and worst odds for each game
-		self.odds_data['Best_Odds_Option_1'] = self.odds_data['Best_Odds_' + self.predict_type]
-		self.odds_data['Best_Odds_Option_2'] = self.odds_data['Worst_Odds_' + self.predict_type]
-
-		for odds_col in ['Best_Odds_Option_1', 'Best_Odds_Option_2']:
-			# fill in missing odds
-			self.odds_data.loc[self.odds_data[odds_col] == 0, odds_col] = -110
-
-			# calculate decimal odds from American odds
-			self.odds_data.loc[self.odds_data[odds_col] > 0, odds_col] = self.odds_data[odds_col] / 100
-			self.odds_data.loc[self.odds_data[odds_col] < 0, odds_col] = 100 / abs(self.odds_data[odds_col])
-
-		columns_we_need = ['Date', 'Team', 'OppTeam', 'Best_Line_Option_1', 'Best_Line_Option_2', 'Best_Odds_Option_1', 'Best_Odds_Option_2']
-		return self.odds_data[columns_we_need]
 
 	def load_data(self, start_date, end_date, stat_path='./data/all_stat_data.csv'):
 		# read csv and filter by date
@@ -101,7 +71,7 @@ class ModelTester():
 			stat_data['predict_col'] = stat_data['pts_opp'] + stat_data['pts']
 
 		# get odds data
-		odds_data = self.get_odds_data(start_date, end_date)
+		odds_data = get_odds_data(self.predict_type, start_date, end_date)
 
 		# merge stat and odds data
 		self.final_df = pd.merge(stat_data, odds_data, on=['Date', 'Team', 'OppTeam'])
@@ -184,25 +154,39 @@ class ModelTester():
 
 		return train_df, test_df
 	
-def compare_odd_types(predict_type='Spread', graph_type='win_rate'):
+def compare_odd_types(predict_types=['Spread' ,'OU'], graph_type='win_rate', plot=True):
+	fig, axs = plt.subplots(2, 2)
+
 	# compare best, worst, and average odds
 	for odd_type in ['best', 'worst', 'average']:
-		m = ModelTester(predict_type=predict_type, odds_type=odd_type)
-		thresholds, win_rates, unit_gains = m.graph_betting_threshold(m.test_df_result, plot=False)
+		for i, predict_type in enumerate(predict_types):
+			m = ModelTester(predict_type=predict_type, odds_type=odd_type)
+			thresholds, win_rates, unit_gains, bets_made = m.graph_betting_threshold(m.test_df_result, plot=False)
 
-		to_graph = win_rates if graph_type == 'win_rate' else unit_gains
-		plt.plot(thresholds, to_graph, label=odd_type.capitalize() + ' Odds')
+			to_graph = win_rates if graph_type == 'win_rate' else unit_gains
+			axs[1, i].plot(thresholds, to_graph, label=odd_type.capitalize() + ' Odds')
+			axs[0, i].plot(
+				thresholds,
+				bets_made,
+				label='Bets Made with ' + odd_type.capitalize() + ' Odds',
+				linestyle='--'
+			)
+			axs[0, i].set(title=predict_type + ' Predictions')
 
-	plt.xlabel('Betting Threshold')
+	for i in range(len(predict_types)):
+		axs[1, i].plot(thresholds, [0.53] * len(thresholds), label='Breakeven Win Rate', linestyle='--', color='gray')
+		axs[1, i].legend()
+		axs[1, i].set(xlabel='Betting Threshold')
+
+	axs[0,0].set(ylabel='Bets Placed')
 
 	if graph_type == 'win_rate':
-		plt.ylabel('Win Rate')
-		plt.title('Betting Threshold vs. Win Rate for ' + predict_type + ' Predictions With Various Odds Types')
+		axs[1,0].set(ylabel='Win Rate')
+		fig.suptitle('Betting Threshold vs. Win Rate for Predictions With Various Odds Types')
 	else:
-		plt.ylabel('Units Gained/Lost')
-		plt.title('Betting Threshold vs. Unit Gain/Loss for ' + predict_type + ' Predictions With Various Odds Types')
+		axs[1,0].set(ylabel='Units Gained/Lost')
+		fig.suptitle('Betting Threshold vs. Unit Gain/Loss for Predictions With Various Odds Types')
 
-	plt.legend()
 	plt.show()
 
 def compare_PERT_leaf_sizes(predict_type='Spread', graph_type='win_rate'):
@@ -232,8 +216,7 @@ def compare_PERT_leaf_sizes(predict_type='Spread', graph_type='win_rate'):
 	plt.show()
 
 
-# compare_odd_types(predict_type='OU')
-# compare_PERT_leaf_sizes(predict_type='Spread')
+# comapare_odd_types = compare_odd_types()
 
 m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
 m.bet_with_predictions(m.test_df_result, print_results=True)
