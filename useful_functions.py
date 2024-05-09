@@ -10,7 +10,7 @@ def get_odds_data(predict_type, start_date, end_date, odds_path='./data/all_odds
 		odds_data['Best_Line_Option_2'] = odds_data['Worst_Line_' + predict_type]
 
 		# fill in missing lines
-		odds_data.loc[odds_data['Best_Line_Option_2'] == 0, 'Best_Line_Option_2'] = odds_data.loc[odds_data['Best_Line_Option_2'] == 0, 'Best_Line_Option_1']
+		odds_data.loc[odds_data['Best_Line_Option_2'] < 150, 'Best_Line_Option_2'] = odds_data.loc[odds_data['Best_Line_Option_2'] < 150, 'Best_Line_Option_1']
 
 		# if predicting spread, make negative lines positive (margin of victory)
 		if predict_type == 'Spread':

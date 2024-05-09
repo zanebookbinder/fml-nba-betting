@@ -8,22 +8,27 @@ from trees.PERTLearner import PERTLearner
 from trees.CARTLearner import CARTLearner
 import matplotlib.pyplot as plt
 from useful_functions import get_odds_data
+from indicators.indicator_data import IndicatorData
 
 class ModelTester():
 	def __init__(self, model_class=LinearRegressor, start_date='2013-10-29', end_date='2023-04-09', predict_type='Spread', odds_type='best', betting_threshold=5, **kwargs):		
-		if predict_type not in ['Spread', 'OU']:
-			raise ValueError('predict_type must be either "spread" or "OU"')
+		if predict_type not in ['Spread', 'OU', 'Both']:
+			raise ValueError('predict_type must be either "spread" or "OU" or "Both')
 		if odds_type not in ['best', 'worst', 'average']:
 			raise ValueError('odds_type must be either "best", "worst", or "average"')	
 			
 		self.predict_type = predict_type
 		self.odds_type = odds_type
 		self.betting_threshold = betting_threshold
-		
+		self.model_class = model_class
+
 		self.load_data(start_date, end_date)
 		self.model = model_class(**kwargs)
 
-		self.train_df_result, self.test_df_result = self.train_model()
+		if model_class == IndicatorData:
+			self.indicator_df_result = self.test_indicator_systems()
+		else:
+			self.train_df_result, self.test_df_result = self.train_model()
 
 		# self.graph_betting_threshold(self.test_df_result)
 
@@ -62,27 +67,35 @@ class ModelTester():
 		stat_data = pd.read_csv(stat_path)
 		stat_data = stat_data[(stat_data['Date'] >= start_date) & (stat_data['Date'] <= end_date)]
 
-		if self.predict_type == 'Spread':
+		if self.predict_type in ['Spread', 'Both']:
 			# team points - opponent points = margin	 (120-105 win --> 15 margin prediction)
-			stat_data['predict_col'] = stat_data['pts'] - stat_data['pts_opp']
+			stat_data['predict_col_Spread'] = stat_data['pts'] - stat_data['pts_opp']
 
-		elif self.predict_type == 'OU':
+		if self.predict_type in ['OU', 'Both']:
 			# team points + opponent points = total		 (120-105 game --> 225 total prediction)
-			stat_data['predict_col'] = stat_data['pts_opp'] + stat_data['pts']
+			stat_data['predict_col_OU'] = stat_data['pts_opp'] + stat_data['pts']
 
-		# get odds data
-		odds_data = get_odds_data(self.predict_type, start_date, end_date)
-
-		# merge stat and odds data
-		self.final_df = pd.merge(stat_data, odds_data, on=['Date', 'Team', 'OppTeam'])
+		# get odds data and merge with stat data
+		if self.predict_type == 'Both':
+			odds_data_spread = get_odds_data('Spread', start_date, end_date)
+			odds_data_OU = get_odds_data('OU', start_date, end_date)
+			odds_data = pd.merge(odds_data_spread, odds_data_OU, on=['Date', 'Team', 'OppTeam'], suffixes=('_Spread', '_OU'))
+			self.final_df = pd.merge(stat_data, odds_data, on=['Date', 'Team', 'OppTeam'])
+		else:
+			odds_data = get_odds_data(self.predict_type, start_date, end_date)
+			self.final_df = pd.merge(stat_data, odds_data, on=['Date', 'Team', 'OppTeam'], suffixes=('', '_'+self.predict_type))
 
 		# limit columns
 		final_df_columns = (
 			['home_game', 'days_of_rest', 'travel_miles', 'days_of_rest_opp', 'travel_miles_opp'] + 
-			[col for col in stat_data.columns if 'last_8' in col] +
-			['predict_col', 'Best_Line_Option_1', 'Best_Line_Option_2', 'Best_Odds_Option_1', 'Best_Odds_Option_2']
+			[col for col in stat_data.columns if 'last_8' in col or 'predict_col' in col] +
+			[col for col in odds_data.columns if 'Best_Line' in col or 'Best_Odds' in col]
 		)
 		self.final_df = self.final_df[final_df_columns]
+
+		if self.model_class == IndicatorData:
+			start_column = self.final_df.columns.get_loc('predict_col_Spread')
+			self.final_df = self.final_df.iloc[:, start_column:]
 
 	def bet_with_predictions(self, df, print_results=False, betting_threshold=None):
 		# df columns are: 'Odds', 'Prediction', 'Results', 'Line'
@@ -154,6 +167,47 @@ class ModelTester():
 
 		return train_df, test_df
 	
+	def test_indicator_systems(self):
+
+		indicator_cols = self.model.df[self.model.indicator_cols]
+
+		indicator_df = self.final_df.copy()
+		indicator_df = pd.concat([indicator_df, indicator_cols], axis=1)
+
+		indicator_df['best_odds_Spread'] = indicator_df.apply(lambda x: max(x['Best_Odds_Option_1_Spread'], x['Best_Odds_Option_2_Spread']), axis=1)
+
+		indicator_df['best_odds_OU'] = indicator_df.apply(lambda x: max(x['Best_Odds_Option_1_OU'], x['Best_Odds_Option_2_OU']), axis=1)
+		indicator_df['worst_odds_OU'] = indicator_df.apply(lambda x: min(x['Best_Odds_Option_1_OU'], x['Best_Odds_Option_2_OU']), axis=1)
+
+		indicator_df['best_line_Spread'] = indicator_df.apply(lambda x: min(x['Best_Line_Option_1_Spread'], x['Best_Line_Option_2_Spread']), axis=1)
+		indicator_df['worst_line_Spread'] = indicator_df.apply(lambda x: max(x['Best_Line_Option_1_Spread'], x['Best_Line_Option_2_Spread']), axis=1)
+
+		indicator_df['best_line_OU'] = indicator_df.apply(lambda x: min(x['Best_Line_Option_1_OU'], x['Best_Line_Option_2_OU']), axis=1)
+		indicator_df['worst_line_OU'] = indicator_df.apply(lambda x: max(x['Best_Line_Option_1_OU'], x['Best_Line_Option_2_OU']), axis=1)
+
+		bets_to_make = []
+		for _, row in indicator_df.iterrows():
+
+			# this contributes 10.6 units
+			if row['fadeATS']:
+				bets_to_make.append([row['best_odds_Spread'], -1000, row['predict_col_Spread'], row['worst_line_Spread']])
+
+			# this contributes 5.45 units
+			if row['betOver']:
+				bets_to_make.append([row['best_odds_OU'], 1000, row['predict_col_OU'], row['best_line_OU']])
+
+			# this contributes 394.8 units, win rate of 0.563
+			if row['useTunnel']:
+				bets_to_make.append([.93, 1000, row['predict_col_OU'], row['best_line_OU']])
+				bets_to_make.append([.93, -1000, row['predict_col_OU'], row['worst_line_OU']])
+
+			# this contributes 5.56 units
+			if row['fadeATS_2']:
+				bets_to_make.append([row['best_odds_Spread'], -1000, row['predict_col_Spread'], row['worst_line_Spread']])
+
+		output_df = pd.DataFrame(bets_to_make, columns=['Odds', 'Prediction', 'Results', 'Line'])
+		return output_df		
+
 def compare_odd_types(predict_types=['Spread' ,'OU'], graph_type='win_rate', plot=True):
 	fig, axs = plt.subplots(2, 2)
 
@@ -218,5 +272,8 @@ def compare_PERT_leaf_sizes(predict_type='Spread', graph_type='win_rate'):
 
 # comapare_odd_types = compare_odd_types()
 
-m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
-m.bet_with_predictions(m.test_df_result, print_results=True)
+# m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
+# m.bet_with_predictions(m.test_df_result, print_results=True)
+
+m = ModelTester(model_class=IndicatorData, predict_type='Both')
+m.bet_with_predictions(m.indicator_df_result, print_results=True)
