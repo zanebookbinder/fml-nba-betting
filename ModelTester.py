@@ -26,7 +26,7 @@ class ModelTester():
 		self.model = model_class(**kwargs)
 
 		if model_class == IndicatorData:
-			self.indicator_df_result = self.test_indicator_systems()
+			self.test_df_result = self.test_indicator_systems()
 		else:
 			self.train_df_result, self.test_df_result = self.train_model()
 
@@ -128,13 +128,14 @@ class ModelTester():
 		return bets_made, win_rate, gain_or_loss
 
 	def train_model(self):
-		some_columns = ['Best_Line_Option_1', 'Best_Line_Option_2', 'Best_Odds_Option_1', 'Best_Odds_Option_2', 'predict_col']
+		predict_col_name = 'predict_col_' + self.predict_type
+		some_columns = ['Best_Line_Option_1', 'Best_Line_Option_2', 'Best_Odds_Option_1', 'Best_Odds_Option_2', predict_col_name]
 
 		test = self.final_df.sample(frac=0.35)
 		train = self.final_df.drop(test.index)
 
 		x_train = train.drop(some_columns, axis=1)
-		y_train = train['predict_col']
+		y_train = train[predict_col_name]
 
 		x_test = test.drop(some_columns, axis=1)
 
@@ -208,13 +209,13 @@ class ModelTester():
 		output_df = pd.DataFrame(bets_to_make, columns=['Odds', 'Prediction', 'Results', 'Line'])
 		return output_df		
 
-def compare_odd_types(predict_types=['Spread' ,'OU'], graph_type='win_rate', plot=True):
-	fig, axs = plt.subplots(2, 2)
+def compare_odd_types(model_class=LinearRegressor, predict_types=['Spread' ,'OU'], graph_type='win_rate', plot=True):
+	fig, axs = plt.subplots(len(predict_types), 2)
 
 	# compare best, worst, and average odds
 	for odd_type in ['best', 'worst', 'average']:
 		for i, predict_type in enumerate(predict_types):
-			m = ModelTester(predict_type=predict_type, odds_type=odd_type)
+			m = ModelTester(model_class=model_class, predict_type=predict_type, odds_type=odd_type)
 			thresholds, win_rates, unit_gains, bets_made = m.graph_betting_threshold(m.test_df_result, plot=False)
 
 			to_graph = win_rates if graph_type == 'win_rate' else unit_gains
@@ -269,11 +270,52 @@ def compare_PERT_leaf_sizes(predict_type='Spread', graph_type='win_rate'):
 
 	plt.show()
 
+def graph_odd_types_with_all_bets():
+	odd_types = ['best', 'average', 'worst']
+	win_rates = []
+	gains = []
+	for odd_type in odd_types:
+		m = ModelTester(model_class=LinearRegressor, predict_type='Spread', odds_type=odd_type)
+		# print(m.test_df_result)
+		bets_made, win_rate, gain_or_loss = m.bet_with_predictions(m.test_df_result, betting_threshold=-1)
+		win_rates.append(win_rate)
+		gains.append(gain_or_loss/100)
 
-# comapare_odd_types = compare_odd_types()
+	stats = {
+		'Win Rate': win_rates,
+		'Unit Gain/Loss (divided by 100)': gains,
+	}
+
+	x = np.arange(len(odd_types))  # the label locations
+	width = 0.25  # the width of the bars
+	multiplier = 0
+
+	fig, ax = plt.subplots(layout='constrained')
+
+	for attribute, measurement in stats.items():
+		offset = width * multiplier
+		rects = ax.bar(x + offset, measurement, width, label=attribute)
+		ax.bar_label(rects, padding=3)
+		multiplier += 1
+
+	# Add some text for labels, title and custom x-axis tick labels, etc.
+	ax.set_ylabel('Length (mm)')
+	ax.set_title('Penguin attributes by species')
+	ax.set_xticks(x + width, odd_types)
+	ax.legend(loc='upper left', ncols=3)
+	# ax.set_ylim(0, 250)
+
+	plt.show()
+
+comapare_odd_types = compare_odd_types(graph_type='gain/loss')
 
 # m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
 
-m = ModelTester(model_class=IndicatorData, predict_type='Both')
-m.bet_with_predictions(m.indicator_df_result, print_results=True)
+# m = ModelTester(model_class=IndicatorData, predict_type='Both')
+# m.bet_with_predictions(m.test_df_result, print_results=True)
+
+# compare_odd_types(model_class=IndicatorData, predict_types=['Both'])
+
+
+# graph_odd_types_with_all_bets()
