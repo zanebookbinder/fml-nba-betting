@@ -3,15 +3,17 @@ from sklearn.metrics import mean_squared_error
 import pandas as pd
 pd.options.mode.chained_assignment = None  # default='warn'
 import numpy as np
+from NeuralNetRegressor import NeuralNetRegressor
 from LinearRegressor import LinearRegressor
 from trees.PERTLearner import PERTLearner
 from trees.CARTLearner import CARTLearner
+from trees.BootstrapLearner import BootstrapLearner
 import matplotlib.pyplot as plt
 from useful_functions import get_odds_data
 from indicators.indicator_data import IndicatorData
 
 class ModelTester():
-	def __init__(self, model_class=LinearRegressor, start_date='2013-10-29', end_date='2023-04-09', predict_type='Spread', odds_type='best', betting_threshold=5, **kwargs):		
+	def __init__(self, model_class=LinearRegressor, start_date='2013-10-29', end_date='2023-04-09', predict_type='Spread', odds_type='best', betting_threshold=5, **model_kwargs):		
 		if predict_type not in ['Spread', 'OU', 'Both']:
 			raise ValueError('predict_type must be either "spread" or "OU" or "Both')
 		if odds_type not in ['best', 'worst', 'average']:
@@ -23,7 +25,7 @@ class ModelTester():
 		self.model_class = model_class
 
 		self.load_data(start_date, end_date)
-		self.model = model_class(**kwargs)
+		self.model = model_class(**model_kwargs)
 
 		if model_class == IndicatorData:
 			self.test_df_result = self.test_indicator_systems()
@@ -307,10 +309,16 @@ def graph_odd_types_with_all_bets():
 
 	plt.show()
 
-comapare_odd_types = compare_odd_types(graph_type='gain/loss')
+# comapare_odd_types = compare_odd_types(graph_type='gain/loss')
 
 # m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
+
+# m = ModelTester(model_class=BootstrapLearner, predict_type='OU', odds_type='best', betting_threshold=10, constituent=PERTLearner, bags = 10, kwargs={"leaf_size": 10})
+# m.bet_with_predictions(m.test_df_result, print_results=True)
+
+m = ModelTester(model_class=NeuralNetRegressor, predict_type='Spread', odds_type='best', betting_threshold=10, input_features=43)
+m.bet_with_predictions(m.test_df_result, print_results=True)
 
 # m = ModelTester(model_class=IndicatorData, predict_type='Both')
 # m.bet_with_predictions(m.test_df_result, print_results=True)
