@@ -99,9 +99,14 @@ class ModelTester():
 			start_column = self.final_df.columns.get_loc('predict_col_Spread')
 			self.final_df = self.final_df.iloc[:, start_column:]
 
-	def bet_with_predictions(self, df, print_results=False, betting_threshold=None):
+	def bet_with_predictions(self, df, print_results=False, betting_threshold=None, use_kelly=False):
 		# df columns are: 'Odds', 'Prediction', 'Results', 'Line'
 		# bet on games where the model's prediction differs from the line by more than the betting threshold
+
+		STARTING_CASH = 100
+
+		df = df.copy()
+		df.reset_index(inplace=True)
   
 		if not betting_threshold:
 			betting_threshold = self.betting_threshold
@@ -109,25 +114,43 @@ class ModelTester():
 		df['bet'] = (df['Prediction'] - df['Line']).abs() > betting_threshold
 		df['win_bet'] = ((df['Prediction'] - df['Line']) * (df['Results'] - df['Line'])) > 0
 
-		df['gain/loss'] = np.zeros(len(df), dtype='float')
-		df.loc[(df['bet']) & (~df['win_bet']), 'gain/loss'] = -1
-		df.loc[(df['bet']) & (df['win_bet']), 'gain/loss'] = df['Odds']
+		df['prediction_diff'] = (df['Prediction'] - df['Line']).abs()
+		df['win_probability'] = .5 + .5 * np.tanh(df['prediction_diff'] / 50)
+		df['kelly_wager_size'] = df['win_probability'] - (1 - df['win_probability']) / df['Odds']
+		df['kelly_wager_size'] = df['kelly_wager_size'].apply(lambda x: 0 if x < 0 else x)
+
+		df['kelly_gain_loss'] = np.zeros(len(df), dtype='float')
+		df['normal_gain_loss'] = np.zeros(len(df), dtype='float')
+
+		df.loc[(df['bet']) & (df['win_bet']), 'kelly_gain_loss'] = df['kelly_wager_size'] * STARTING_CASH * df['Odds']
+		df.loc[(df['bet']) & (~df['win_bet']), 'kelly_gain_loss'] = -1 * df['kelly_wager_size'] * STARTING_CASH
+
+		df.loc[(df['bet']) & (df['win_bet']), 'normal_gain_loss'] = df['kelly_wager_size'].median() * STARTING_CASH * df['Odds']
+		df.loc[(df['bet']) & (~df['win_bet']), 'normal_gain_loss'] = -1 * df['kelly_wager_size'].median() * STARTING_CASH
+
+		df['kelly_cumulative_total'] = df['kelly_gain_loss'].cumsum()
+		df['cumulative_total'] = df['normal_gain_loss'].cumsum()
 
 		if not df['bet'].sum():
 			return 0, 0, 0
 
 		bets_made = df['bet'].sum()
 		win_rate = round(df.loc[df["bet"] == True, "win_bet"].sum() / df["bet"].sum(), 3)
-		gain_or_loss = df["gain/loss"].sum()
+		kelly_gain_or_loss = df["kelly_gain_loss"].sum()
+		normal_gain_or_loss = df["normal_gain_loss"].sum()
 
 		if print_results:
 			print(f'Testing model with {len(df)} total games')
 			print(f'Number of bets: {bets_made}')
 			print(f'Number of wins: {df.loc[df["bet"] == True, "win_bet"].sum()}')
 			print(f'Win rate: {win_rate}')
-			print(f'Total gain/loss: {gain_or_loss}')
+			print(f'Normal gain/loss: {normal_gain_or_loss}')
+			print(f'Kelly gain/loss: {kelly_gain_or_loss}')
+			plt.plot(df.index, df['cumulative_total'])
+			plt.plot(df.index, df['kelly_cumulative_total'])
+			plt.show()
 
-		return bets_made, win_rate, gain_or_loss
+		return bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss
 
 	def train_model(self):
 		predict_col_name = 'predict_col_' + self.predict_type
@@ -321,15 +344,18 @@ def graph_odd_types_with_all_bets():
 
 # comapare_odd_types = compare_odd_types(graph_type='gain/loss')
 
+m = ModelTester(model_class=LinearRegressor, predict_type='OU', odds_type='best', betting_threshold=10)
+m.bet_with_predictions(m.test_df_result, print_results=True, use_kelly=True)
+
 # m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
 
 # m = ModelTester(model_class=BootstrapLearner, predict_type='OU', odds_type='best', betting_threshold=10, constituent=PERTLearner, bags = 10, kwargs={"leaf_size": 10})
 # m.bet_with_predictions(m.test_df_result, print_results=True)
 
-m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43)
-m.bet_with_predictions(m.test_df_result, print_results=True)
-m.graph_training_losses()
+# m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43)
+# m.bet_with_predictions(m.test_df_result, print_results=True)
+# m.graph_training_losses()
 
 # m = ModelTester(model_class=IndicatorData, predict_type='Both')
 # m.bet_with_predictions(m.test_df_result, print_results=True)
