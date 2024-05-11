@@ -213,7 +213,9 @@ class ModelTester():
 		return output_df		
 
 	def graph_training_losses(self):
-		plt.plot(self.losses[5:])
+		max_shown_loss = min(self.losses) * 10
+		show_losses  = [loss if loss < max_shown_loss else max_shown_loss for loss in self.losses]
+		plt.plot(show_losses)
 		plt.xlabel('Epoch')
 		plt.ylabel('Loss')
 		plt.title('Training Loss Over Time')
