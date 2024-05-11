@@ -142,11 +142,12 @@ class ModelTester():
 		x_test = test.drop(some_columns, axis=1)
 
 		print('Training model...')
-		self.model.train(x_train, y_train)
+		self.losses = self.model.train(x_train, y_train)
 		print('Done training model')
 
 		is_predictions = self.model.test(x_train)
 		oos_predictions = self.model.test(x_test)
+
 
 		train_df = train[some_columns]
 		train_df.loc[:, 'Prediction'] = np.array(is_predictions, dtype='float')
@@ -210,6 +211,13 @@ class ModelTester():
 
 		output_df = pd.DataFrame(bets_to_make, columns=['Odds', 'Prediction', 'Results', 'Line'])
 		return output_df		
+
+	def graph_training_losses(self):
+		plt.plot(self.losses[5:])
+		plt.xlabel('Epoch')
+		plt.ylabel('Loss')
+		plt.title('Training Loss Over Time')
+		plt.show()
 
 def compare_odd_types(model_class=LinearRegressor, predict_types=['Spread' ,'OU'], graph_type='win_rate', plot=True):
 	fig, axs = plt.subplots(len(predict_types), 2)
@@ -317,8 +325,9 @@ def graph_odd_types_with_all_bets():
 # m = ModelTester(model_class=BootstrapLearner, predict_type='OU', odds_type='best', betting_threshold=10, constituent=PERTLearner, bags = 10, kwargs={"leaf_size": 10})
 # m.bet_with_predictions(m.test_df_result, print_results=True)
 
-m = ModelTester(model_class=NeuralNetRegressor, predict_type='Spread', odds_type='best', betting_threshold=10, input_features=43)
+m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43)
 m.bet_with_predictions(m.test_df_result, print_results=True)
+m.graph_training_losses()
 
 # m = ModelTester(model_class=IndicatorData, predict_type='Both')
 # m.bet_with_predictions(m.test_df_result, print_results=True)
