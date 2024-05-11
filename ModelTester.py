@@ -13,7 +13,7 @@ from useful_functions import get_odds_data
 from indicators.indicator_data import IndicatorData
 
 class ModelTester():
-	def __init__(self, model_class=LinearRegressor, start_date='2013-10-29', end_date='2023-04-09', predict_type='Spread', odds_type='best', betting_threshold=5, **model_kwargs):		
+	def __init__(self, model_class=LinearRegressor, start_date='2013-10-29', end_date='2023-04-09', predict_type='Spread', odds_type='best', betting_threshold=5, test_split=0.25, **model_kwargs):		
 		if predict_type not in ['Spread', 'OU', 'Both']:
 			raise ValueError('predict_type must be either "spread" or "OU" or "Both')
 		if odds_type not in ['best', 'worst', 'average']:
@@ -30,7 +30,7 @@ class ModelTester():
 		if model_class == IndicatorData:
 			self.test_df_result = self.test_indicator_systems()
 		else:
-			self.train_df_result, self.test_df_result = self.train_model()
+			self.train_df_result, self.test_df_result = self.train_model(test_split)
 
 		# self.graph_betting_threshold(self.test_df_result)
 
@@ -152,11 +152,11 @@ class ModelTester():
 
 		return bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss
 
-	def train_model(self):
+	def train_model(self, test_split):
 		predict_col_name = 'predict_col_' + self.predict_type
 		some_columns = ['Best_Line_Option_1', 'Best_Line_Option_2', 'Best_Odds_Option_1', 'Best_Odds_Option_2', predict_col_name]
 
-		test = self.final_df.sample(frac=0.35)
+		test = self.final_df.sample(frac=test_split)
 		train = self.final_df.drop(test.index)
 
 		x_train = train.drop(some_columns, axis=1)
@@ -344,8 +344,8 @@ def graph_odd_types_with_all_bets():
 
 # comapare_odd_types = compare_odd_types(graph_type='gain/loss')
 
-m = ModelTester(model_class=LinearRegressor, predict_type='OU', odds_type='best', betting_threshold=10)
-m.bet_with_predictions(m.test_df_result, print_results=True, use_kelly=True)
+# m = ModelTester(model_class=LinearRegressor, predict_type='OU', odds_type='best', betting_threshold=10)
+# m.bet_with_predictions(m.test_df_result, print_results=True, use_kelly=True)
 
 # m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
@@ -353,9 +353,9 @@ m.bet_with_predictions(m.test_df_result, print_results=True, use_kelly=True)
 # m = ModelTester(model_class=BootstrapLearner, predict_type='OU', odds_type='best', betting_threshold=10, constituent=PERTLearner, bags = 10, kwargs={"leaf_size": 10})
 # m.bet_with_predictions(m.test_df_result, print_results=True)
 
-# m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43)
-# m.bet_with_predictions(m.test_df_result, print_results=True)
-# m.graph_training_losses()
+m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43)
+m.bet_with_predictions(m.test_df_result, print_results=True)
+m.graph_training_losses()
 
 # m = ModelTester(model_class=IndicatorData, predict_type='Both')
 # m.bet_with_predictions(m.test_df_result, print_results=True)
