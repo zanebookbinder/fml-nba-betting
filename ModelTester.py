@@ -13,6 +13,7 @@ from trees.XGBoostRegressor import XGBoostRegressor
 import matplotlib.pyplot as plt
 from useful_functions import get_odds_data
 from indicators.indicator_data import IndicatorData
+import itertools
 
 
 class ModelTester:
@@ -42,7 +43,7 @@ class ModelTester:
 		if model_class == IndicatorData:
 			self.test_df_result = self.test_indicator_systems()
 		else:
-			self.train_df_result, self.test_df_result = self.train_model()
+			self.train_df_result, self.test_df_result = self.train_model(test_split)
 
 		# self.graph_betting_threshold(self.test_df_result)
 
@@ -227,6 +228,7 @@ class ModelTester:
 			df["cumulative_return"],
 		)
 
+
 	def train_model(self):
 		predict_col_name = "predict_col_" + self.predict_type
 		some_columns = [
@@ -237,7 +239,7 @@ class ModelTester:
 			predict_col_name,
 		]
 
-		test = self.final_df.sample(frac=0.35)
+		test = self.final_df.sample(frac=test_split)
 		train = self.final_df.drop(test.index)
 
 		x_train = train.drop(some_columns, axis=1)
@@ -391,6 +393,7 @@ class ModelTester:
 				)
 
 			# this contributes 5.56 units
+
 			if row["fadeATS_2"]:
 				bets_to_make.append(
 					[
@@ -416,6 +419,57 @@ class ModelTester:
 		plt.ylabel("Loss")
 		plt.title("Training Loss Over Time")
 		plt.show()
+        
+        
+        
+def compare_models(self, model_classes, plot=True):
+       
+        model_results = {}
+
+        for model_name, model_info in model_classes.items():
+            print(f"Training and testing model: {model_name}")
+            model_class = model_info['class']
+            model_params = model_info.get('params', {})
+            self.model = model_class(**model_params)
+            self.train_df_result, self.test_df_result = self.train_model(self.test_split)
+            bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss = self.bet_with_predictions(self.test_df_result, print_results=False)
+
+            model_results[model_name] = (bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss)
+
+            if plot:
+                win_rates = model_results[model_name][1]
+                plt.plot(win_rates, label=model_name)
+
+        if plot:
+            plt.title(f'Model {model_class} Performance Comparison Over Time')
+            plt.legend()
+            plt.show()
+
+        return model_results
+   
+def compare_network_params():
+    
+    param_dict = {
+        'lr': [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005, 0.00001],
+        'dropout_prob': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],
+        'epochs': [10, 25, 50, 100, 150, 200, 250, 300, 350]
+    }
+    # Create all combinations of parameters from the parameter grid
+    keys, values = zip(*param_dict.items())
+    param_combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
+    
+    results = []
+    for params in param_combinations:
+        print(f"Testing with parameters: {params}")
+        m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43, **params)
+        bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss = m.bet_with_predictions(m.test_df_result, print_results=True)
+        m.graph_training_losses()
+        results.append((params, bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss))
+    
+    # Find the best parameter set based on win rate
+    best_params = max(results, key=lambda x: x[2])
+    print(f"Best parameters based on win rate: {best_params[0]}")
+    return best_params
 
 
 def compare_odd_types(
@@ -568,6 +622,7 @@ def graph_odd_types_with_all_bets():
 	plt.show()
 
 
+
 def compare_kelly_to_normal():
 	colors = {"best": "green", "worst": "red", "average": "orange"}
 	for odds in ["best", "worst", "average"]:
@@ -633,3 +688,17 @@ m.bet_with_predictions(m.test_df_result, print_results=True)
 
 
 # graph_odd_types_with_all_bets()
+
+best_network_params = compare_network_params()
+print("Best model parameters found:", best_network_params)
+
+
+# model_classes = {
+#     'Neural Network': {'class': NeuralNetRegressor, 'params': {'input_features': 43, 'dropout_prob': 0.3, 'lr': 0.0001}},
+#     'Linear Regression': {'class': LinearRegressor, 'params': {}},
+#     'CART Learner': {'class': CARTLearner, 'params': {'leaf_size': 10}},
+#     # Add other models here
+# }
+
+# model_evaluation = compare_models(model_classes)
+# print("Model performance comparison:", model_evaluation)
