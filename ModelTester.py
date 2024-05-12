@@ -274,7 +274,7 @@ def compare_models(self, model_classes, plot=True):
 
         return model_results
    
-def compare_network_params(self):
+def compare_network_params():
     
     param_dict = {
         'lr': [0.01, 0.001, 0.0001],
@@ -287,7 +287,7 @@ def compare_network_params(self):
     results = []
     for params in param_combinations:
         print(f"Testing with parameters: {params}")
-        m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43, kwargs=params)
+        m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43, **params)
         bets_made, win_rate, gain_or_loss = m.bet_with_predictions(m.test_df_result, print_results=True)
         m.graph_training_losses()
         results.append((params, win_rate, gain_or_loss))
@@ -406,9 +406,9 @@ def graph_odd_types_with_all_bets():
 # m = ModelTester(model_class=BootstrapLearner, predict_type='OU', odds_type='best', betting_threshold=10, constituent=PERTLearner, bags = 10, kwargs={"leaf_size": 10})
 # m.bet_with_predictions(m.test_df_result, print_results=True)
 
-m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43)
-m.bet_with_predictions(m.test_df_result, print_results=True)
-m.graph_training_losses()
+# m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43)
+# m.bet_with_predictions(m.test_df_result, print_results=True)
+# m.graph_training_losses()
 
 # m = ModelTester(model_class=IndicatorData, predict_type='Both')
 # m.bet_with_predictions(m.test_df_result, print_results=True)
@@ -418,8 +418,8 @@ m.graph_training_losses()
 
 # graph_odd_types_with_all_bets()
 
-# best_network_params = compare_network_params()
-# print("Best model parameters found:", best_network_params)
+best_network_params = compare_network_params()
+print("Best model parameters found:", best_network_params)
 
 
 # model_classes = {
