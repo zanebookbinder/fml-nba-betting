@@ -11,6 +11,7 @@ from trees.BootstrapLearner import BootstrapLearner
 import matplotlib.pyplot as plt
 from useful_functions import get_odds_data
 from indicators.indicator_data import IndicatorData
+import itertools
 
 class ModelTester():
 	def __init__(self, model_class=LinearRegressor, start_date='2013-10-29', end_date='2023-04-09', predict_type='Spread', odds_type='best', betting_threshold=5, test_split=0.25, **model_kwargs):		
@@ -233,7 +234,9 @@ class ModelTester():
 				bets_to_make.append([row['best_odds_Spread'], -1000, row['predict_col_Spread'], row['worst_line_Spread']])
 
 		output_df = pd.DataFrame(bets_to_make, columns=['Odds', 'Prediction', 'Results', 'Line'])
-		return output_df		
+		return output_df	
+
+    	
 
 	def graph_training_losses(self):
 		max_shown_loss = min(self.losses) * 10
@@ -243,6 +246,56 @@ class ModelTester():
 		plt.ylabel('Loss')
 		plt.title('Training Loss Over Time')
 		plt.show()
+        
+        
+        
+def compare_models(self, model_classes, plot=True):
+       
+        model_results = {}
+
+        for model_name, model_info in model_classes.items():
+            print(f"Training and testing model: {model_name}")
+            model_class = model_info['class']
+            model_params = model_info.get('params', {})
+            self.model = model_class(**model_params)
+            self.train_df_result, self.test_df_result = self.train_model(self.test_split)
+            bets_made, win_rate, gain_or_loss = self.bet_with_predictions(self.test_df_result, print_results=False)
+
+            model_results[model_name] = (bets_made, win_rate, gain_or_loss)
+
+            if plot:
+                win_rates = model_results[model_name][1]
+                plt.plot(win_rates, label=model_name)
+
+        if plot:
+            plt.title(f'Model {model_class} Performance Comparison Over Time')
+            plt.legend()
+            plt.show()
+
+        return model_results
+   
+def compare_network_params(self):
+    
+    param_dict = {
+        'lr': [0.01, 0.001, 0.0001],
+        'dropout_prob': [0.2, 0.3, 0.4],
+    }
+    # Create all combinations of parameters from the parameter grid
+    keys, values = zip(*param_dict.items())
+    param_combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
+    
+    results = []
+    for params in param_combinations:
+        print(f"Testing with parameters: {params}")
+        m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43, kwargs=params)
+        bets_made, win_rate, gain_or_loss = m.bet_with_predictions(m.test_df_result, print_results=True)
+        m.graph_training_losses()
+        results.append((params, win_rate, gain_or_loss))
+    
+    # Find the best parameter set based on win rate
+    best_params = max(results, key=lambda x: x[1])
+    print(f"Best parameters based on win rate: {best_params[0]}")
+    return best_params
 
 def compare_odd_types(model_class=LinearRegressor, predict_types=['Spread' ,'OU'], graph_type='win_rate', plot=True):
 	fig, axs = plt.subplots(len(predict_types), 2)
@@ -364,3 +417,17 @@ m.graph_training_losses()
 
 
 # graph_odd_types_with_all_bets()
+
+# best_network_params = compare_network_params()
+# print("Best model parameters found:", best_network_params)
+
+
+# model_classes = {
+#     'Neural Network': {'class': NeuralNetRegressor, 'params': {'input_features': 43, 'dropout_prob': 0.3, 'lr': 0.0001}},
+#     'Linear Regression': {'class': LinearRegressor, 'params': {}},
+#     'CART Learner': {'class': CARTLearner, 'params': {'leaf_size': 10}},
+#     # Add other models here
+# }
+
+# model_evaluation = compare_models(model_classes)
+# print("Model performance comparison:", model_evaluation)

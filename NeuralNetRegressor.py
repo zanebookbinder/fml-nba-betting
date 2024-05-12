@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 
 
 class NeuralNetRegressor(nn.Module):
-    def __init__(self, input_features, dropout_prob=0.2, lr=0.0001):
+    def __init__(self, input_features, dropout_prob=0.3, lr=0.0001):
         super(NeuralNetRegressor, self).__init__()
         self.input_layer = nn.Linear(input_features, 32)  
         self.bn1 = nn.BatchNorm1d(32)
@@ -24,7 +24,7 @@ class NeuralNetRegressor(nn.Module):
 
         self.relu = nn.ReLU()
         self.mse_loss = nn.MSELoss()
-        self.optimizer = AdamW(self.parameters(), lr=lr)
+        self.optimizer = Adam(self.parameters(), lr=lr)
         # self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=1000, gamma=0.9)
         
         # self.device = torch.device("cpu")
@@ -44,7 +44,7 @@ class NeuralNetRegressor(nn.Module):
         x = self.output_layer(x)
         return x
 
-    def train(self, X_train, y_train, epochs=5000, batch_size=256):
+    def train(self, X_train, y_train, epochs=200, batch_size=256):
         X_train = torch.tensor(X_train.values, dtype=torch.float32).to(self.device)
         y_train = torch.tensor(y_train.values, dtype=torch.float32).to(self.device)
 
@@ -55,7 +55,7 @@ class NeuralNetRegressor(nn.Module):
         losses = []
         for i in range(epochs):
             epoch_losses = []
-            if not i % 10:
+            if not i % 100:
                 print('epoch', i, ' loss:', losses[-1] if losses else None)
             for X, y in loader:
                 y_pred = self(X)
