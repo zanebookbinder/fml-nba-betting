@@ -277,9 +277,9 @@ def compare_models(self, model_classes, plot=True):
 def compare_network_params():
     
     param_dict = {
-        'lr': [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005],
-        'dropout_prob': [0.1, 0.2, 0.25, 0.3, 0.4],
-        'epochs': [10, 25, 50, 100, 150, 200, 250, 300]
+        'lr': [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005, 0.00001],
+        'dropout_prob': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],
+        'epochs': [10, 25, 50, 100, 150, 200, 250, 300, 350]
     }
     # Create all combinations of parameters from the parameter grid
     keys, values = zip(*param_dict.items())
@@ -294,7 +294,7 @@ def compare_network_params():
         results.append((params, bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss))
     
     # Find the best parameter set based on win rate
-    best_params = max(results, key=lambda x: x[1])
+    best_params = max(results, key=lambda x: x[2])
     print(f"Best parameters based on win rate: {best_params[0]}")
     return best_params
 
