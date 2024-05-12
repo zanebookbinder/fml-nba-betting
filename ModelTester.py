@@ -99,7 +99,7 @@ class ModelTester():
 			start_column = self.final_df.columns.get_loc('predict_col_Spread')
 			self.final_df = self.final_df.iloc[:, start_column:]
 
-	def bet_with_predictions(self, df, print_results=False, betting_threshold=None, use_kelly=False):
+	def bet_with_predictions(self, df, print_results=False, betting_threshold=None):
 		# df columns are: 'Odds', 'Prediction', 'Results', 'Line'
 		# bet on games where the model's prediction differs from the line by more than the betting threshold
 
@@ -125,11 +125,11 @@ class ModelTester():
 		df.loc[(df['bet']) & (df['win_bet']), 'kelly_gain_loss'] = df['kelly_wager_size'] * STARTING_CASH * df['Odds']
 		df.loc[(df['bet']) & (~df['win_bet']), 'kelly_gain_loss'] = -1 * df['kelly_wager_size'] * STARTING_CASH
 
-		df.loc[(df['bet']) & (df['win_bet']), 'normal_gain_loss'] = df['kelly_wager_size'].median() * STARTING_CASH * df['Odds']
-		df.loc[(df['bet']) & (~df['win_bet']), 'normal_gain_loss'] = -1 * df['kelly_wager_size'].median() * STARTING_CASH
+		df.loc[(df['bet']) & (df['win_bet']), 'normal_gain_loss'] = df['kelly_wager_size'].mean() * STARTING_CASH * df['Odds']
+		df.loc[(df['bet']) & (~df['win_bet']), 'normal_gain_loss'] = -1 * df['kelly_wager_size'].mean() * STARTING_CASH
 
-		df['kelly_cumulative_total'] = df['kelly_gain_loss'].cumsum()
-		df['cumulative_total'] = df['normal_gain_loss'].cumsum()
+		df['kelly_cumulative_total'] = df['kelly_gain_loss'].cumsum() / STARTING_CASH
+		df['cumulative_total'] = df['normal_gain_loss'].cumsum() / STARTING_CASH
 
 		if not df['bet'].sum():
 			return 0, 0, 0
@@ -150,7 +150,7 @@ class ModelTester():
 			plt.plot(df.index, df['kelly_cumulative_total'])
 			plt.show()
 
-		return bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss
+		return bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss, df['cumulative_total'], df['kelly_cumulative_total']
 
 	def train_model(self):
 		predict_col_name = 'predict_col_' + self.predict_type
@@ -342,10 +342,36 @@ def graph_odd_types_with_all_bets():
 
 	plt.show()
 
-# comapare_odd_types = compare_odd_types(graph_type='gain/loss')
+def compare_kelly_to_normal():
 
-m = ModelTester(model_class=LinearRegressor, predict_type='OU', odds_type='best', betting_threshold=10)
-m.bet_with_predictions(m.test_df_result, print_results=True, use_kelly=True)
+	colors = {'best': 'green', 'worst': 'red', 'average': 'orange'}
+	for odds in ['best', 'worst', 'average']:
+		average_totals = []
+		average_kelly_totals = []
+
+		for i in range(10):
+			m =	ModelTester(model_class=LinearRegressor, predict_type='Spread', odds_type=odds, betting_threshold=10)
+			bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss, cumulative_total, kelly_cumulative_total = m.bet_with_predictions(m.test_df_result)
+
+			average_totals.append(cumulative_total)
+			average_kelly_totals.append(kelly_cumulative_total)
+
+		average_totals = np.array(average_totals).mean(axis=0)
+		average_kelly_totals = np.array(average_kelly_totals).mean(axis=0)
+
+		plt.plot(average_totals, label='Normal Betting, ' + odds.capitalize() + ' Odds', linestyle=(0, (1, 5)), color=colors[odds])
+		plt.plot(average_kelly_totals, label='Kelly Criterion Betting, ' + odds.capitalize() + ' Odds', color=colors[odds])
+
+	plt.xlabel('Bet number')
+	plt.ylabel('Percent gain/loss')
+	plt.title('Out of Sample Betting Results for OU Predictions (Betting Threshold=10)')
+	plt.gca().set_yticklabels([f'{x:.0%}' for x in plt.gca().get_yticks()]) 
+	plt.legend()
+	plt.show()
+
+compare_kelly_to_normal()
+
+# comapare_odd_types = compare_odd_types(graph_type='gain/loss')
 
 # m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
