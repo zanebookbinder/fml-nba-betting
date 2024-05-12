@@ -174,6 +174,9 @@ class ModelTester:
 			lambda x: 0 if x < 0 else x
 		)
 
+		# print("Kelly stake when bet wins:", df.loc[df["bet"] & df["win_bet"], "kelly_wager_size"].mean())
+		# print("Kelly stake when bet loses:", df.loc[df["bet"] & ~df["win_bet"], "kelly_wager_size"].mean())
+
 		df["kelly_gain_loss"] = np.zeros(len(df), dtype="float")
 		df["normal_gain_loss"] = np.zeros(len(df), dtype="float")
 
@@ -191,8 +194,8 @@ class ModelTester:
 			-1 * df["kelly_wager_size"].mean() * STARTING_CASH
 		)
 
-		df["kelly_cumulative_return"] = df["kelly_gain_loss"].cumsum() / STARTING_CASH
-		df["cumulative_return"] = df["normal_gain_loss"].cumsum() / STARTING_CASH
+		df["kelly_cumulative_return"] = df["kelly_gain_loss"].cumsum() #/ STARTING_CASH
+		df["cumulative_return"] = df["normal_gain_loss"].cumsum() #/ STARTING_CASH
 
 		if not df["bet"].sum():
 			return 0, 0, 0
@@ -213,8 +216,8 @@ class ModelTester:
 			print(f"Kelly gain/loss: {kelly_gain_or_loss}")
 			plt.plot(df.index, df["cumulative_return"])
 			plt.plot(df.index, df["kelly_cumulative_return"])
-			plt.show()
-
+			plt.show() 
+	
 		return (
 			bets_made,
 			win_rate,
@@ -571,16 +574,16 @@ def compare_kelly_to_normal():
 		average_totals = []
 		average_kelly_totals = []
 
-		for i in range(10):
+		for i in range(5):
 			m = ModelTester(
 				model_class=LinearRegressor,
-				predict_type="Spread",
+				predict_type="OU",
 				odds_type=odds,
 				betting_threshold=10,
 			)
 			res = m.bet_with_predictions(m.test_df_result)
-			cumulative_total = res[4]
-			kelly_cumulative_total = res[5]
+			cumulative_total = res[5]
+			kelly_cumulative_total = res[4]
 			average_totals.append(cumulative_total)
 			average_kelly_totals.append(kelly_cumulative_total)
 
@@ -600,16 +603,15 @@ def compare_kelly_to_normal():
 		)
 
 	plt.xlabel("Bet number")
-	plt.ylabel("Percent gain/loss")
-	plt.title("Out of Sample Betting Results for OU Predictions (Betting Threshold=10)")
-	plt.gca().set_yticklabels([f"{x:.0%}" for x in plt.gca().get_yticks()])
+	plt.ylabel("$ Gain")
+	plt.title("Out of Sample Betting Results for OU Predictions (Betting Threshold=10, Starting Cash=100)")
 	plt.legend()
 	plt.show()
 
 
-# compare_kelly_to_normal()
+compare_kelly_to_normal()
 
-comapare_odd_types = compare_odd_types(graph_type="gain/loss")
+# comapare_odd_types = compare_odd_types(graph_type="gain/loss")
 
 # m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
