@@ -8,6 +8,7 @@ from LinearRegressor import LinearRegressor
 from trees.PERTLearner import PERTLearner
 from trees.CARTLearner import CARTLearner
 from trees.BootstrapLearner import BootstrapLearner
+from trees.XGBoostRegressor import XGBoostRegressor
 import matplotlib.pyplot as plt
 from useful_functions import get_odds_data
 from indicators.indicator_data import IndicatorData
@@ -374,6 +375,9 @@ compare_kelly_to_normal()
 # comapare_odd_types = compare_odd_types(graph_type='gain/loss')
 
 # m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
+# m.bet_with_predictions(m.test_df_result, print_results=True)
+
+# m = ModelTester(model_class=XGBoostRegressor, predict_type='OU', odds_type='best', betting_threshold=10)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
 
 # m = ModelTester(model_class=BootstrapLearner, predict_type='OU', odds_type='best', betting_threshold=10, constituent=PERTLearner, bags = 10, kwargs={"leaf_size": 10})
