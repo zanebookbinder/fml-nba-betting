@@ -259,9 +259,9 @@ def compare_models(self, model_classes, plot=True):
             model_params = model_info.get('params', {})
             self.model = model_class(**model_params)
             self.train_df_result, self.test_df_result = self.train_model(self.test_split)
-            bets_made, win_rate, gain_or_loss = self.bet_with_predictions(self.test_df_result, print_results=False)
+            bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss = self.bet_with_predictions(self.test_df_result, print_results=False)
 
-            model_results[model_name] = (bets_made, win_rate, gain_or_loss)
+            model_results[model_name] = (bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss)
 
             if plot:
                 win_rates = model_results[model_name][1]
@@ -277,9 +277,9 @@ def compare_models(self, model_classes, plot=True):
 def compare_network_params():
     
     param_dict = {
-        'lr': [0.005, 0.001, 0.0005, 0.0001],
-        'dropout_prob': [0.1, 0.2, 0.3, 0.4],
-        'epochs': [25, 50, 100, 150, 200, 250, 300]
+        'lr': [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005],
+        'dropout_prob': [0.1, 0.2, 0.25, 0.3, 0.4],
+        'epochs': [10, 25, 50, 100, 150, 200, 250, 300]
     }
     # Create all combinations of parameters from the parameter grid
     keys, values = zip(*param_dict.items())
@@ -289,9 +289,9 @@ def compare_network_params():
     for params in param_combinations:
         print(f"Testing with parameters: {params}")
         m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43, **params)
-        bets_made, win_rate, gain_or_loss = m.bet_with_predictions(m.test_df_result, print_results=True)
+        bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss = m.bet_with_predictions(m.test_df_result, print_results=True)
         m.graph_training_losses()
-        results.append((params, win_rate, gain_or_loss))
+        results.append((params, bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss))
     
     # Find the best parameter set based on win rate
     best_params = max(results, key=lambda x: x[1])
