@@ -24,7 +24,7 @@ class ModelTester:
 		predict_type="Spread",
 		odds_type="best",
 		betting_threshold=5,
-		**model_kwargs,
+		**kwargs,
 	):
 		if predict_type not in ["Spread", "OU", "Both"]:
 			raise ValueError('predict_type must be either "spread" or "OU" or "Both')
@@ -37,7 +37,7 @@ class ModelTester:
 		self.model_class = model_class
 
 		self.load_data(start_date, end_date)
-		self.model = model_class(**model_kwargs)
+		self.model = model_class(**kwargs)
 
 		if model_class == IndicatorData:
 			self.test_df_result = self.test_indicator_systems()
@@ -609,7 +609,7 @@ def compare_kelly_to_normal():
 	plt.show()
 
 
-compare_kelly_to_normal()
+# compare_kelly_to_normal()
 
 # comapare_odd_types = compare_odd_types(graph_type="gain/loss")
 
@@ -619,8 +619,8 @@ compare_kelly_to_normal()
 # m = ModelTester(model_class=XGBoostRegressor, predict_type='OU', odds_type='best', betting_threshold=10)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
 
-# m = ModelTester(model_class=BootstrapLearner, predict_type='OU', odds_type='best', betting_threshold=10, constituent=PERTLearner, bags = 10, kwargs={"leaf_size": 10})
-# m.bet_with_predictions(m.test_df_result, print_results=True)
+m = ModelTester(model_class=BootstrapLearner, predict_type='OU', odds_type='best', betting_threshold=10, constituent=PERTLearner, bags = 10, model_kwargs={"leaf_size": 10})
+m.bet_with_predictions(m.test_df_result, print_results=True)
 
 # m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
