@@ -43,14 +43,14 @@ class ModelTester:
 		if model_class == IndicatorData:
 			self.test_df_result = self.test_indicator_systems()
 		else:
-			self.train_df_result, self.test_df_result = self.train_model(test_split)
+			self.train_df_result, self.test_df_result = self.train_model()
 
 		# self.graph_betting_threshold(self.test_df_result)
 
 	def graph_betting_threshold(self, test_df_result, plot=True):
 		# graph betting threshold vs. win percentage and unit gain/loss
 
-		max_threshold = 10 if self.predict_type == "Spread" else 18
+		max_threshold = 8 if self.predict_type == "Spread" else 16
 
 		thresholds = np.arange(1, max_threshold, 0.1)
 		win_rates = []
@@ -155,8 +155,7 @@ class ModelTester:
 
 		STARTING_CASH = 100
 
-		df = df.copy()
-		df.reset_index(inplace=True)
+		df = df.reset_index()
 
 		if not betting_threshold:
 			betting_threshold = self.betting_threshold
@@ -165,6 +164,9 @@ class ModelTester:
 		df["win_bet"] = (
 			(df["Prediction"] - df["Line"]) * (df["Results"] - df["Line"])
 		) > 0
+		df['lose_bet'] = (
+			(df["Prediction"] - df["Line"]) * (df["Results"] - df["Line"])
+		) < 0
 
 		df["prediction_diff"] = (df["Prediction"] - df["Line"]).abs()
 		df["win_probability"] = 0.5 + 0.5 * np.tanh(df["prediction_diff"] / 50)
@@ -177,6 +179,9 @@ class ModelTester:
 
 		# print("Kelly stake when bet wins:", df.loc[df["bet"] & df["win_bet"], "kelly_wager_size"].mean())
 		# print("Kelly stake when bet loses:", df.loc[df["bet"] & ~df["win_bet"], "kelly_wager_size"].mean())
+		# print('Normal betting average stake:', df.loc[df["bet"], "kelly_wager_size"].median() * STARTING_CASH)
+		# print("Total kelly money staked:", df.loc[df["bet"], "kelly_wager_size"].sum() * STARTING_CASH)
+		# print("Total normal money staked:", df["bet"].sum() * df["kelly_wager_size"].median() * STARTING_CASH)
 
 		df["kelly_gain_loss"] = np.zeros(len(df), dtype="float")
 		df["normal_gain_loss"] = np.zeros(len(df), dtype="float")
@@ -184,16 +189,18 @@ class ModelTester:
 		df.loc[(df["bet"]) & (df["win_bet"]), "kelly_gain_loss"] = (
 			df["kelly_wager_size"] * STARTING_CASH * df["Odds"]
 		)
-		df.loc[(df["bet"]) & (~df["win_bet"]), "kelly_gain_loss"] = (
+		df.loc[(df["bet"]) & (df["lose_bet"]), "kelly_gain_loss"] = (
 			-1 * df["kelly_wager_size"] * STARTING_CASH
 		)
 
 		df.loc[(df["bet"]) & (df["win_bet"]), "normal_gain_loss"] = (
-			df["kelly_wager_size"].mean() * STARTING_CASH * df["Odds"]
+			df["kelly_wager_size"].median() * STARTING_CASH * df["Odds"]
 		)
-		df.loc[(df["bet"]) & (~df["win_bet"]), "normal_gain_loss"] = (
-			-1 * df["kelly_wager_size"].mean() * STARTING_CASH
+		df.loc[(df["bet"]) & (df["lose_bet"]), "normal_gain_loss"] = (
+			-1 * df["kelly_wager_size"].median() * STARTING_CASH
 		)
+
+
 
 		df["kelly_cumulative_return"] = df["kelly_gain_loss"].cumsum() #/ STARTING_CASH
 		df["cumulative_return"] = df["normal_gain_loss"].cumsum() #/ STARTING_CASH
@@ -202,8 +209,10 @@ class ModelTester:
 			return 0, 0, 0
 
 		bets_made = df["bet"].sum()
+		bets_won = df.loc[df["bet"] & df["win_bet"], "bet"].sum()
+		bets_lost = df.loc[df["bet"] & df["lose_bet"], "bet"].sum()
 		win_rate = round(
-			df.loc[df["bet"] == True, "win_bet"].sum() / df["bet"].sum(), 3
+			bets_won / (bets_won + bets_lost), 3
 		)
 		kelly_gain_or_loss = df["kelly_gain_loss"].sum()
 		normal_gain_or_loss = df["normal_gain_loss"].sum()
@@ -229,7 +238,7 @@ class ModelTester:
 		)
 
 
-	def train_model(self):
+	def train_model(self, test_split=.35):
 		predict_col_name = "predict_col_" + self.predict_type
 		some_columns = [
 			"Best_Line_Option_1",
@@ -482,11 +491,12 @@ def compare_odd_types(
 
 	# compare best, worst, and average odds
 	for odd_type in ["best", "worst", "average"]:
+		print(odd_type)
 		for i, predict_type in enumerate(predict_types):
 			bets_made_copies = []
 			win_rates_copies = []
 			unit_gains_copies = []
-			for _ in range(5):
+			for _ in range(10):
 				m = ModelTester(
 					model_class=model_class,
 					predict_type=predict_type,
@@ -517,7 +527,7 @@ def compare_odd_types(
 			if odd_type == "best":
 				axs[1, i].plot(
 					thresholds,
-					[0.53] * len(thresholds),
+					[0.525] * len(thresholds),
 					label="Breakeven Win Rate",
 					linestyle="--",
 					color="gray",
@@ -629,7 +639,7 @@ def compare_kelly_to_normal():
 		average_totals = []
 		average_kelly_totals = []
 
-		for i in range(5):
+		for i in range(1):
 			m = ModelTester(
 				model_class=LinearRegressor,
 				predict_type="OU",
@@ -664,9 +674,9 @@ def compare_kelly_to_normal():
 	plt.show()
 
 
-# compare_kelly_to_normal()
+compare_kelly_to_normal()
 
-# comapare_odd_types = compare_odd_types(graph_type="gain/loss")
+# comapare_odd_types = compare_odd_types(graph_type="win_rate")
 
 # m = ModelTester(model_class=CARTLearner, predict_type='OU', odds_type='best', betting_threshold=10, leaf_size=10)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
@@ -674,8 +684,8 @@ def compare_kelly_to_normal():
 # m = ModelTester(model_class=XGBoostRegressor, predict_type='OU', odds_type='best', betting_threshold=10)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
 
-m = ModelTester(model_class=BootstrapLearner, predict_type='OU', odds_type='best', betting_threshold=10, constituent=PERTLearner, bags = 10, model_kwargs={"leaf_size": 10})
-m.bet_with_predictions(m.test_df_result, print_results=True)
+# m = ModelTester(model_class=BootstrapLearner, predict_type='OU', odds_type='best', betting_threshold=10, constituent=PERTLearner, bags = 10, model_kwargs={"leaf_size": 10})
+# m.bet_with_predictions(m.test_df_result, print_results=True)
 
 # m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43)
 # m.bet_with_predictions(m.test_df_result, print_results=True)
@@ -689,8 +699,8 @@ m.bet_with_predictions(m.test_df_result, print_results=True)
 
 # graph_odd_types_with_all_bets()
 
-best_network_params = compare_network_params()
-print("Best model parameters found:", best_network_params)
+# best_network_params = compare_network_params()
+# print("Best model parameters found:", best_network_params)
 
 
 # model_classes = {
