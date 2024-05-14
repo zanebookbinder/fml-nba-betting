@@ -429,11 +429,51 @@ class ModelTester:
 		plt.title("Training Loss Over Time")
 		plt.show()
         
+
+def compare_feature_importance(model, feature_names):
+   
+    if hasattr(model, 'feature_importance_values'):  # CART
+        importances = model.feature_importance_values
+        indices = np.argsort(importances)[::-1]
+
+        # Plot Feature Importance (tree-based)
+        plt.figure(figsize=(10, 6))
+        plt.title('Feature Importance')
+        plt.bar(range(len(importances)), importances[indices], color='b', align='center')
+        plt.xticks(range(len(importances)), [feature_names[i] for i in indices], rotation=90)
+        plt.xlabel('Features')
+        plt.ylabel('Importance')
+        plt.show()
         
+    elif hasattr(model, 'get_score'):  # XGBoost
+        importances = model.model.get_score(importance_type='weight')  # Can also use 'gain' or 'cover'
+        # XGBoost get_score() might return a dictionary where features are keys and importance are values
+        # Make sure features from the model are matched by order and existence in feature_names
+        sorted_importances = np.array([importances.get(f, 0) for f in feature_names])
+        indices = np.argsort(sorted_importances)[::-1]
+
+    elif hasattr(model, 'coef'):  # LinReg models
+        importances = np.abs(model.model.coef_)
+        indices = np.argsort(importances)[::-1]
+
+        # Plot Feature Importance (linear model)
+        plt.figure(figsize=(10, 6))
+        plt.title('Feature Coefficients')
+        plt.bar(range(len(importances)), importances[indices], color='r', align='center')
+        plt.xticks(range(len(importances)), [feature_names[i] for i in indices], rotation=90)
+        plt.xlabel('Features')
+        plt.ylabel('Coefficient')
+        plt.show()
+
+    else:
+        print("The model provided does not have an attribute to infer feature importance.")
         
 def compare_models(self, model_classes, plot=True):
        
         model_results = {}
+        
+        win_rates = []
+        model_names = []
 
         for model_name, model_info in model_classes.items():
             print(f"Training and testing model: {model_name}")
@@ -444,14 +484,20 @@ def compare_models(self, model_classes, plot=True):
             bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss = self.bet_with_predictions(self.test_df_result, print_results=False)
 
             model_results[model_name] = (bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss)
+            win_rates.append(win_rate)
+            model_names.append(model_name)
 
             if plot:
-                win_rates = model_results[model_name][1]
-                plt.plot(win_rates, label=model_name)
+                model_win_rates = model_results[model_name][1]
+                plt.plot(model_win_rates, label=model_name)
 
         if plot:
-            plt.title(f'Model {model_class} Performance Comparison Over Time')
-            plt.legend()
+            fig, ax = plt.subplots()
+            ax.bar(model_names, win_rates, color='blue')
+            ax.set_xlabel('Models')
+            ax.set_ylabel('Win Rate')
+            ax.set_title('Comparison of Model Win Rates')
+            ax.set_xticklabels(model_names)
             plt.show()
 
         return model_results
@@ -459,9 +505,9 @@ def compare_models(self, model_classes, plot=True):
 def compare_network_params():
     
     param_dict = {
-        'lr': [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005, 0.00001],
-        'dropout_prob': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],
-        'epochs': [10, 25, 50, 100, 150, 200, 250, 300, 350]
+        'lr': [0.0001],
+        'dropout_prob': [0.26],
+        'epochs': [165, 170, 175, 180, 185, 190, 195, 200, 205, 210, 215]
     }
     # Create all combinations of parameters from the parameter grid
     keys, values = zip(*param_dict.items())
@@ -699,8 +745,18 @@ compare_kelly_to_normal()
 
 # graph_odd_types_with_all_bets()
 
-# best_network_params = compare_network_params()
-# print("Best model parameters found:", best_network_params)
+win_rates = []
+bests_over_trials = []
+
+
+for i in range(12):
+    best_network_params = compare_network_params()
+    print("Best model parameters found:", best_network_params)
+    bests_over_trials.append(best_network_params)
+    win_rates.append(best_network_params[2])
+
+print(f'Win rates over 10 trials: {win_rates}')
+print(f'List of bests: {bests_over_trials}')
 
 
 # model_classes = {

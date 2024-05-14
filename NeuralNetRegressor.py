@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 
 
 class NeuralNetRegressor(nn.Module):
-    def __init__(self, input_features, dropout_prob=0.3, lr=0.0001, epochs=200):
+    def __init__(self, input_features, dropout_prob=0.26, lr=0.0001, epochs=200):
         super(NeuralNetRegressor, self).__init__()
         self.input_layer = nn.Linear(input_features, 32)  
         self.bn1 = nn.BatchNorm1d(32)

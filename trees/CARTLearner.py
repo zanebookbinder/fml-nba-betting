@@ -19,8 +19,13 @@ class CARTLearner:
     def __init__(self, leaf_size=1):
         self.leaf_size = leaf_size
         self.tree_root = None
+        self.max_depth = 0
+        self.feature_importance_values = None
 
-    def build_tree(self, data):
+    def build_tree(self, data, curr_depth=0):
+        
+        self.max_depth = max(self.max_depth, curr_depth)
+        
         if np.all(data['Y'] == data['Y'].iloc[0]):
             return TreeNode(None, data['Y'].iloc[0])
         
@@ -41,8 +46,16 @@ class CARTLearner:
             return TreeNode(None, data['Y'].mean())
 
         my_node = TreeNode(best_corr_feature, median)
-        my_node.left = self.build_tree(left)
-        my_node.right = self.build_tree(right)
+        my_node.left = self.build_tree(left, curr_depth+1)
+        my_node.right = self.build_tree(right, curr_depth+1)
+        
+        if self.feature_importances_ is None:
+            self.feature_importance_values = {}
+        if best_corr_feature in self.feature_importances_:
+            self.feature_importance_values[best_corr_feature] += (1 / (curr_depth + 1))
+        else:
+            self.feature_importance_values[best_corr_feature] = (1 / (curr_depth + 1))
+        
         return my_node
 
     def train(self, x, y):
