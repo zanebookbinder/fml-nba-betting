@@ -429,6 +429,19 @@ class ModelTester:
 		plt.title("Training Loss Over Time")
 		plt.show()
 		
+        
+def calc_sharpe_ratio(returns, risk_free_rate=0.01):
+    
+    returns = np.array(returns)
+    sharpe_ratio = (np.mean(returns) - risk_free_rate) / np.std(returns)
+    
+    return sharpe_ratio
+        
+def calculate_max_drawdown(returns):
+    cumulative = returns.cumsum()
+    peak = cumulative.cummax()
+    drawdown = (cumulative - peak).min()
+    return drawdown
 
 def compare_feature_importance(model, feature_names):
    
@@ -465,6 +478,7 @@ def compare_feature_importance(model, feature_names):
 		plt.ylabel('Coefficient')
 		plt.show()
 
+<<<<<<< HEAD
 	else:
 		print("The model provided does not have an attribute to infer feature importance.")
 		
@@ -491,6 +505,49 @@ def compare_models(model_classes, predict_type='Spread', plot=True):
 				win_rates[model_name + '_' + str(i)] = result[1]
 				# win_rates.append(result[1])
 				# model_names.append(model_name)
+=======
+    else:
+        print("The model provided does not have an attribute to infer feature importance.")
+        
+def compare_models(model_classes, plot=True, trials=1):
+        
+        model_results = {}
+        
+        model_names = []
+
+        for model_name, model_info in model_classes.items():
+            win_rates = []
+            model_names.append(model_name)
+            print(f"Training and testing model: {model_name}")
+            for i in range(trials):
+                model_class = model_info['class']
+                model_params = model_info.get('params', {})
+                model = ModelTester(model_class=model_class, predict_type='OU', odds_type='best', betting_threshold=10, **model_params)
+                bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss, _, _ = model.bet_with_predictions(model.test_df_result, print_results=True)
+                win_rates.append(win_rate)
+
+            model_results[model_name] = {
+                'mean_win_rate': np.mean(win_rates),
+                'std_dev': np.std(win_rates),
+                'all_win_rates': win_rates
+            }
+
+            # if plot:
+            #     model_win_rates = model_results[model_name][1]
+            #     plt.plot(model_win_rates, label=model_name)
+
+        if plot:
+            fig, ax = plt.subplots()
+            mean_win_rates = [model_results[name]['mean_win_rate'] for name in model_names]
+            errors = [model_results[name]['std_dev'] for name in model_names]
+            ax.bar(model_names, mean_win_rates, yerr=errors, capsize=5, color='blue', alpha=0.7)
+            ax.set_xlabel('Models')
+            ax.set_ylabel('Win Rate')
+            ax.set_title('Comparison of Model Win Rates')
+            ax.set_xticklabels(model_names)
+            ax.set_ylim(bottom=0.49)
+            plt.show()
+>>>>>>> f314ca9 (Bug fixes, more testing)
 
 			# if plot:
 			# 	model_win_rates = model_results[model_name][1]
@@ -782,19 +839,29 @@ def graph_all_models_win_rates(win_rates_dict):
 
 # graph_odd_types_with_all_bets()
 
-win_rates = []
-bests_over_trials = []
+# win_rates = []
+# bests_over_trials = []
 
+<<<<<<< HEAD
 for i in range(10):
     best_network_params = compare_network_params()
     print("Best model parameters found:", best_network_params)
     bests_over_trials.append(best_network_params)
     win_rates.append(best_network_params[2])
+=======
 
-print(f'Win rates over 10 trials: {win_rates}')
-print(f'List of bests: {bests_over_trials}')
+# for i in range(10):
+#     best_network_params = compare_network_params()
+#     print("Best model parameters found:", best_network_params)
+#     bests_over_trials.append(best_network_params)
+#     win_rates.append(best_network_params[2])
+>>>>>>> f314ca9 (Bug fixes, more testing)
+
+# print(f'Win rates over 10 trials: {win_rates}')
+# print(f'List of bests: {bests_over_trials}')
 
 
+<<<<<<< HEAD
 # model_classes = {
 # 	'Neural Network': {'class': NeuralNetRegressor, 'params': {'input_features': 43, 'dropout_prob': 0.3, 'lr': 0.0001}},
 # 	'Linear Regression': {'class': LinearRegressor, 'params': {}},
@@ -825,3 +892,17 @@ print(f'List of bests: {bests_over_trials}')
 # }
 
 # graph_all_models_win_rates(win_rates)
+=======
+
+
+
+model_classes = {
+    'Neural Network': {'class': NeuralNetRegressor, 'params': {'input_features': 43}},
+    'Linear Regression': {'class': LinearRegressor, 'params': {}},
+    'CART Learner': {'class': CARTLearner, 'params': {'leaf_size': 10}},
+    'Bootstrapped PERT Learner': {'class': BootstrapLearner, 'params': {'constituent': PERTLearner, 'bags': 10, 'model_kwargs': {'leaf_size': 10}}}
+}
+
+model_evaluation = compare_models(model_classes)
+print("Model performance comparison:", model_evaluation)
+>>>>>>> f314ca9 (Bug fixes, more testing)

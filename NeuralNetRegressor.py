@@ -24,7 +24,7 @@ class NeuralNetRegressor(nn.Module):
 
         self.epochs = epochs
         self.relu = nn.ReLU()
-        self.mse_loss = nn.MSELoss()
+        self.loss = nn.MSELoss()
         self.optimizer = Adam(self.parameters(), lr=lr)
         # self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=1000, gamma=0.9)
         
@@ -61,7 +61,7 @@ class NeuralNetRegressor(nn.Module):
             for X, y in loader:
                 y_pred = self(X)
                 y_pred_adj = y_pred
-                loss = self.mse_loss(y_pred_adj.squeeze(), y)
+                loss = self.loss(y_pred_adj.squeeze(), y)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
