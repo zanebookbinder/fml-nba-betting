@@ -49,9 +49,9 @@ class CARTLearner:
         my_node.left = self.build_tree(left, curr_depth+1)
         my_node.right = self.build_tree(right, curr_depth+1)
         
-        if self.feature_importances_ is None:
+        if self.feature_importance_values is None:
             self.feature_importance_values = {}
-        if best_corr_feature in self.feature_importances_:
+        if best_corr_feature in self.feature_importance_values:
             self.feature_importance_values[best_corr_feature] += (1 / (curr_depth + 1))
         else:
             self.feature_importance_values[best_corr_feature] = (1 / (curr_depth + 1))

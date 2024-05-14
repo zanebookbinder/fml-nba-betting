@@ -24,7 +24,7 @@ class ModelTester:
 		end_date="2023-04-09",
 		predict_type="Spread",
 		odds_type="best",
-		betting_threshold=5,
+		betting_threshold=10,
 		**kwargs,
 	):
 		if predict_type not in ["Spread", "OU", "Both"]:
@@ -201,7 +201,6 @@ class ModelTester:
 		)
 
 
-
 		df["kelly_cumulative_return"] = df["kelly_gain_loss"].cumsum() #/ STARTING_CASH
 		df["cumulative_return"] = df["normal_gain_loss"].cumsum() #/ STARTING_CASH
 
@@ -235,6 +234,7 @@ class ModelTester:
 			normal_gain_or_loss,
 			df["kelly_cumulative_return"],
 			df["cumulative_return"],
+			df.loc[df["bet"], "kelly_wager_size"].sum() * STARTING_CASH
 		)
 
 
@@ -428,82 +428,86 @@ class ModelTester:
 		plt.ylabel("Loss")
 		plt.title("Training Loss Over Time")
 		plt.show()
-        
+		
 
 def compare_feature_importance(model, feature_names):
    
-    if hasattr(model, 'feature_importance_values'):  # CART
-        importances = model.feature_importance_values
-        indices = np.argsort(importances)[::-1]
+	if hasattr(model, 'feature_importance_values'):  # CART
+		importances = model.feature_importance_values
+		indices = np.argsort(importances)[::-1]
 
-        # Plot Feature Importance (tree-based)
-        plt.figure(figsize=(10, 6))
-        plt.title('Feature Importance')
-        plt.bar(range(len(importances)), importances[indices], color='b', align='center')
-        plt.xticks(range(len(importances)), [feature_names[i] for i in indices], rotation=90)
-        plt.xlabel('Features')
-        plt.ylabel('Importance')
-        plt.show()
-        
-    elif hasattr(model, 'get_score'):  # XGBoost
-        importances = model.model.get_score(importance_type='weight')  # Can also use 'gain' or 'cover'
-        # XGBoost get_score() might return a dictionary where features are keys and importance are values
-        # Make sure features from the model are matched by order and existence in feature_names
-        sorted_importances = np.array([importances.get(f, 0) for f in feature_names])
-        indices = np.argsort(sorted_importances)[::-1]
+		# Plot Feature Importance (tree-based)
+		plt.figure(figsize=(10, 6))
+		plt.title('Feature Importance')
+		plt.bar(range(len(importances)), importances[indices], color='b', align='center')
+		plt.xticks(range(len(importances)), [feature_names[i] for i in indices], rotation=90)
+		plt.xlabel('Features')
+		plt.ylabel('Importance')
+		plt.show()
+		
+	elif hasattr(model, 'get_score'):  # XGBoost
+		importances = model.model.get_score(importance_type='weight')  # Can also use 'gain' or 'cover'
+		# XGBoost get_score() might return a dictionary where features are keys and importance are values
+		# Make sure features from the model are matched by order and existence in feature_names
+		sorted_importances = np.array([importances.get(f, 0) for f in feature_names])
+		indices = np.argsort(sorted_importances)[::-1]
 
-    elif hasattr(model, 'coef'):  # LinReg models
-        importances = np.abs(model.model.coef_)
-        indices = np.argsort(importances)[::-1]
+	elif hasattr(model, 'coef'):  # LinReg models
+		importances = np.abs(model.model.coef_)
+		indices = np.argsort(importances)[::-1]
 
-        # Plot Feature Importance (linear model)
-        plt.figure(figsize=(10, 6))
-        plt.title('Feature Coefficients')
-        plt.bar(range(len(importances)), importances[indices], color='r', align='center')
-        plt.xticks(range(len(importances)), [feature_names[i] for i in indices], rotation=90)
-        plt.xlabel('Features')
-        plt.ylabel('Coefficient')
-        plt.show()
+		# Plot Feature Importance (linear model)
+		plt.figure(figsize=(10, 6))
+		plt.title('Feature Coefficients')
+		plt.bar(range(len(importances)), importances[indices], color='r', align='center')
+		plt.xticks(range(len(importances)), [feature_names[i] for i in indices], rotation=90)
+		plt.xlabel('Features')
+		plt.ylabel('Coefficient')
+		plt.show()
 
-    else:
-        print("The model provided does not have an attribute to infer feature importance.")
-        
-def compare_models(self, model_classes, plot=True):
-       
-        model_results = {}
-        
-        win_rates = []
-        model_names = []
+	else:
+		print("The model provided does not have an attribute to infer feature importance.")
+		
+def compare_models(model_classes, predict_type='Spread', plot=True):
+	   
+		model_results = {}
+		
+		win_rates = {}
+		model_names = []
 
-        for model_name, model_info in model_classes.items():
-            print(f"Training and testing model: {model_name}")
-            model_class = model_info['class']
-            model_params = model_info.get('params', {})
-            self.model = model_class(**model_params)
-            self.train_df_result, self.test_df_result = self.train_model(self.test_split)
-            bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss = self.bet_with_predictions(self.test_df_result, print_results=False)
+		for model_name, model_info in model_classes.items():
+			print(f"Training and testing model: {model_name}")
+			model_class = model_info['class']
+			model_params = model_info.get('params', {})
 
-            model_results[model_name] = (bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss)
-            win_rates.append(win_rate)
-            model_names.append(model_name)
+			for i in range(5):
+				model = ModelTester(model_class=model_class, predict_type=predict_type, **model_params)
+				# model.train_df_result, model.test_df_result = model.train_model(self.test_split)
 
-            if plot:
-                model_win_rates = model_results[model_name][1]
-                plt.plot(model_win_rates, label=model_name)
+				# result = (bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss, df['cumulative_total'], df['kelly_cumulative_total'], df.loc[df["bet"], "kelly_wager_size"].sum() * STARTING_CASH)
+				result = model.bet_with_predictions(model.test_df_result, print_results=False)
 
-        if plot:
-            fig, ax = plt.subplots()
-            ax.bar(model_names, win_rates, color='blue')
-            ax.set_xlabel('Models')
-            ax.set_ylabel('Win Rate')
-            ax.set_title('Comparison of Model Win Rates')
-            ax.set_xticklabels(model_names)
-            plt.show()
+				model_results[model_name + '_' + str(i)] = result[:4]
+				win_rates[model_name + '_' + str(i)] = result[1]
+				# win_rates.append(result[1])
+				# model_names.append(model_name)
 
-        return model_results
+			# if plot:
+			# 	model_win_rates = model_results[model_name][1]
+			# 	plt.plot(model_win_rates, label=model_name)
+
+		# if plot:
+		# 	fig, ax = plt.subplots()
+		# 	ax.bar(model_names, win_rates, color='blue')
+		# 	ax.set_xlabel('Models')
+		# 	ax.set_ylabel('Win Rate')
+		# 	ax.set_title('Comparison of Model Win Rates')
+		# 	ax.set_xticklabels(model_names)
+		# 	plt.show()
+
+		return model_results, win_rates
    
 def compare_network_params():
-    
     param_dict = {
         'lr': [0.0001],
         'dropout_prob': [0.26],
@@ -681,14 +685,16 @@ def graph_odd_types_with_all_bets():
 
 def compare_kelly_to_normal():
 	colors = {"best": "green", "worst": "red", "average": "orange"}
+
+	best_kelly_total, total_wager_amount, bets_made, test_df_length = 0, 0, 0, 0
 	for odds in ["best", "worst", "average"]:
 		average_totals = []
 		average_kelly_totals = []
 
-		for i in range(1):
+		for i in range(5):
 			m = ModelTester(
 				model_class=LinearRegressor,
-				predict_type="OU",
+				predict_type="Spread",
 				odds_type=odds,
 				betting_threshold=10,
 			)
@@ -698,8 +704,16 @@ def compare_kelly_to_normal():
 			average_totals.append(cumulative_total)
 			average_kelly_totals.append(kelly_cumulative_total)
 
+			if kelly_cumulative_total.iloc[-1] > best_kelly_total:
+				best_kelly_total = kelly_cumulative_total.iloc[-1]
+				total_wager_amount = res[6]
+				bets_made = res[0]
+				test_df_length = len(m.test_df_result)
+
 		average_totals = np.array(average_totals).mean(axis=0)
 		average_kelly_totals = np.array(average_kelly_totals).mean(axis=0)
+
+
 
 		plt.plot(
 			average_totals,
@@ -719,8 +733,31 @@ def compare_kelly_to_normal():
 	plt.legend()
 	plt.show()
 
+	print('\n\n')
+	print(f"Best Kelly total: {best_kelly_total}")
+	print('Total wager amount:', total_wager_amount)
+	print('Number of bets made:', bets_made)
+	print('Number of games in test set:', test_df_length)
 
-# compare_kelly_to_normal()
+def graph_all_models_win_rates(win_rates_dict):
+	# sort win rates by average win rate into list of tuples
+	win_rates_list = [(k, v) for k, v in sorted(win_rates_dict.items(), key=lambda item: -np.mean(item[1]))]
+
+	fig, ax = plt.subplots()
+
+	# make a bar chart graphing each model's win rate, including average and min and max
+	for model_name, win_rate in win_rates_list:
+		avg_win_rate = np.mean(win_rate)
+		min_win_rate = min(win_rate)
+		max_win_rate = max(win_rate)
+		ax.bar(model_name, avg_win_rate, yerr=[[avg_win_rate - min_win_rate], [max_win_rate - avg_win_rate]], capsize=5)
+
+	ax.set_xlabel('Models')
+	ax.set_ylabel('Win Rate')
+	ax.set_title('Comparison of Model Win Rates (OU Predictions)')
+	ax.set_xticklabels([i[0] for i in win_rates_list])
+	ax.set_ylim([.49, .57])
+	plt.show()
 
 # comapare_odd_types = compare_odd_types(graph_type="win_rate")
 
@@ -748,7 +785,6 @@ def compare_kelly_to_normal():
 win_rates = []
 bests_over_trials = []
 
-
 for i in range(10):
     best_network_params = compare_network_params()
     print("Best model parameters found:", best_network_params)
@@ -760,11 +796,32 @@ print(f'List of bests: {bests_over_trials}')
 
 
 # model_classes = {
-#     'Neural Network': {'class': NeuralNetRegressor, 'params': {'input_features': 43, 'dropout_prob': 0.3, 'lr': 0.0001}},
-#     'Linear Regression': {'class': LinearRegressor, 'params': {}},
-#     'CART Learner': {'class': CARTLearner, 'params': {'leaf_size': 10}},
-#     # Add other models here
+# 	'Neural Network': {'class': NeuralNetRegressor, 'params': {'input_features': 43, 'dropout_prob': 0.3, 'lr': 0.0001}},
+# 	'Linear Regression': {'class': LinearRegressor, 'params': {}},
+# 	'CART Learner': {'class': CARTLearner, 'params': {'leaf_size': 10}},
+# 	'Bootstrapped PERT Learner': {'class': BootstrapLearner, 'params': {'constituent': PERTLearner, 'bags': 10, 'model_kwargs': {'leaf_size': 10}}},
+# 	'XGBoost Regressor': {'class': XGBoostRegressor, 'params': {}}
+# 	# Add other models here
 # }
 
-# model_evaluation = compare_models(model_classes)
-# print("Model performance comparison:", model_evaluation)
+# model_evaluation, win_rates = compare_models(model_classes=model_classes, predict_type='Spread', plot=True)
+# print("Model performance comparison:")
+# print(win_rates)
+
+# win_rates = {
+# 	'Neural Network': [.525, .519, .527, .531, .519],
+# 	'Linear Regression': [.528, .536, .551, .523, .552],
+# 	'CART Learner': [.53, .509, .526, .517, .531],
+# 	'Bootstrapped PERT Learner': [.51, .52, .524, .508, .528],
+# 	'XGBoost Regressor': [.527, .537, .525, .525, .52]
+# }
+
+# spread_win_rates = {
+# 	'Neural Network': [.511, .51, .521, .501, .535],
+# 	'Linear Regression': [.53, .521, .533, .509, .528],
+# 	'CART Learner': [.507, .516, .503, .491, .514],
+# 	'Bootstrapped PERT Learner': [.531, .517, .514, .51, .531],
+# 	'XGBoost Regressor': [.54, .538, .533, .525, .535]
+# }
+
+# graph_all_models_win_rates(win_rates)

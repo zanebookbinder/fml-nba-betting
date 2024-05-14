@@ -31,8 +31,8 @@ class NeuralNetRegressor(nn.Module):
         # self.device = torch.device("cpu")
         
         # Uncomment to train on GPU
-        self.device = torch.device("mps")
-        self.to(self.device)
+        self.device = torch.device("cpu")
+        # self.to(self.device)
 
     def forward(self, x):
         x = self.relu(self.input_layer(x))
