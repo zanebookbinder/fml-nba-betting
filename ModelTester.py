@@ -450,9 +450,9 @@ def compare_models(self, model_classes, plot=True):
 def compare_network_params():
     
     param_dict = {
-        'lr': [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005, 0.00001],
-        'dropout_prob': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],
-        'epochs': [10, 25, 50, 100, 150, 200, 250, 300, 350]
+        'lr': [0.0001],
+        'dropout_prob': [0.26],
+        'epochs': [165, 170, 175, 180, 185, 190, 195, 200, 205, 210, 215]
     }
     # Create all combinations of parameters from the parameter grid
     keys, values = zip(*param_dict.items())
@@ -689,8 +689,18 @@ m.bet_with_predictions(m.test_df_result, print_results=True)
 
 # graph_odd_types_with_all_bets()
 
-best_network_params = compare_network_params()
-print("Best model parameters found:", best_network_params)
+win_rates = []
+bests_over_trials = []
+
+
+for i in range(10):
+    best_network_params = compare_network_params()
+    print("Best model parameters found:", best_network_params)
+    bests_over_trials.append(best_network_params)
+    win_rates.append(best_network_params[2])
+    
+print(f'Win rates over 10 trials: {win_rates}')
+print(f'List of bests: {bests_over_trials}')
 
 
 # model_classes = {
