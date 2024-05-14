@@ -507,7 +507,7 @@ def compare_network_params():
     param_dict = {
         'lr': [0.0001],
         'dropout_prob': [0.26],
-        'epochs': [165, 170, 175, 180, 185, 190, 195, 200, 205, 210, 215]
+        'epochs': [200, 205]
     }
     # Create all combinations of parameters from the parameter grid
     keys, values = zip(*param_dict.items())
@@ -517,7 +517,7 @@ def compare_network_params():
     for params in param_combinations:
         print(f"Testing with parameters: {params}")
         m = ModelTester(model_class=NeuralNetRegressor, predict_type='OU', odds_type='best', betting_threshold=10, input_features=43, **params)
-        bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss = m.bet_with_predictions(m.test_df_result, print_results=True)
+        bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss, kelly_cumret, cumret = m.bet_with_predictions(m.test_df_result, print_results=True)
         m.graph_training_losses()
         results.append((params, bets_made, win_rate, kelly_gain_or_loss, normal_gain_or_loss))
     
@@ -720,7 +720,7 @@ def compare_kelly_to_normal():
 	plt.show()
 
 
-compare_kelly_to_normal()
+# compare_kelly_to_normal()
 
 # comapare_odd_types = compare_odd_types(graph_type="win_rate")
 
@@ -749,7 +749,7 @@ win_rates = []
 bests_over_trials = []
 
 
-for i in range(12):
+for i in range(10):
     best_network_params = compare_network_params()
     print("Best model parameters found:", best_network_params)
     bests_over_trials.append(best_network_params)
